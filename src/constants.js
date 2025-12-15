@@ -1,5 +1,5 @@
 export const MIN_FREQ = 1;
-export const MAX_FREQ = 15000;
+export const MAX_FREQ = 18000;
 
 export const PLAY_TONE_TEXT = "Play Tone";
 export const STOP_TONE_TEXT = "Stop Tone";
@@ -11,11 +11,13 @@ export const FREQ_KEY = "freq";
 export const PLAYER_STATE_KEY = "playerState";
 
 // initial config values
-export const DEFAULT_FREQ = 1000;
-export const DEFAULT_VOLUME = -10;
+export const DEFAULT_FREQ = 13640;
+export const DEFAULT_VOLUME = -40;
 
 export const LOOP_REPEAT = 4;
 export const REST_LENGTH = 4;
+export const COURSE_MINS = 45;
+export const INTERVAL_MINS = 15;
 
 // constants
 export const PLAYER_STATES = {

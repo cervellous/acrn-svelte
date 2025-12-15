@@ -1,10 +1,10 @@
 {
   "name": "acrn",
-  "homepage": "http://www.generalfuzz.net/acrn",
+  "homepage": "./",
   "version": "0.1.0",
   "private": true,
   "devDependencies": {
-    "react-scripts": "1.1.4"
+    "react-scripts": "^5.0.1"
   },
   "dependencies": {
     "rc-slider": "^8.6.1",
@@ -20,5 +20,17 @@
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }

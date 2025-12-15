@@ -35,6 +35,8 @@ class App extends Component {
             freq: localFreq,
             freqSeq: freqSeq,
             volume: localVolume,
+            course: constants.COURSE_MINS,
+            interval: constants.INTERVAL_MINS,
             playState: playerState,
             enableSlider: true,
             isPlaying: false,
@@ -97,14 +99,55 @@ class App extends Component {
     };
 
 
+
+    handleTextCourseChange = (e) => {
+        let value = parseInt(e.target.value, 10);
+        if (!isNaN(value)) {
+            this.handleFreqChange(value);
+        }
+    };
+    handleCourseChange = value => {
+        this.setState({
+            course: value,
+        });
+    };
+
+    handleTextIntervalChange = (e) => {
+        let value = parseInt(e.target.value, 10);
+        if (!isNaN(value)) {
+            this.handleIntervalChange(value);
+        }
+    };
+    handleIntervalChange = value => {
+        this.setState({
+            interval: value,
+        });
+    };
+
+
     handleClickPlay = () => {
-        let {isPlaying, volume, playState} = this.state;
+        let {isPlaying, volume, playState, course, interval} = this.state;
+        let courseMs = course * 60 * 1000;
+        let intervalMs = interval * 60 * 1000;
         if (!isPlaying) {
             Tone.Transport.start();
             Tone.Master.volume.rampTo(volume, 0.05);
+
+            // create the interval that pauses every courseMs
+            this.courseInterval = setInterval(() => {
+                Tone.Master.volume.rampTo(-Infinity, 0.05);
+                Tone.Transport.stop();
+                // resume after intervalMs
+                this.resumeTimeout = setTimeout(() => {        
+                    Tone.Transport.start();
+                    Tone.Master.volume.rampTo(volume, 0.05);
+                }, intervalMs);
+            }, courseMs);
         } else {
             Tone.Master.volume.rampTo(-Infinity, 0.05);
             Tone.Transport.stop();
+            clearInterval(this.courseInterval);
+            clearTimeout(this.resumeTimeout);
         }
         this.updatePlayState(!isPlaying, playState);
         this.setState({isPlaying: !isPlaying});
@@ -245,8 +288,20 @@ class App extends Component {
         localStorage.setItem(constants.PLAYER_STATE_KEY, newPlayState);
     };
 
+    handleTextVolumeChange = (e) => {
+        let value = parseFloat(e.target.value, 10);
+        if (!isNaN(value) && val > -80 && val < -30) {
+            this.handleVolumeChangeVal(value);
+        }
+    };
+
     handleVolumeChange = (event) => {
         let volume = event - 0.05;
+        this.handleVolumeChangeVal(volume);
+    };
+
+    handleVolumeChangeVal = (volume) => {
+        console.log(volume);
         Tone.Master.volume.rampTo(volume, 0.05);
         this.setState({volume: volume});
         localStorage.setItem(constants.VOLUME_KEY, volume);
@@ -271,7 +326,7 @@ class App extends Component {
 
 
     render = () => {
-        let {freq, enableSlider, volume, playButtonText, playState} = this.state;
+        let {freq, enableSlider, volume, playButtonText, playState, course, interval} = this.state;
         return (
             <div className="App">
                 <nav className="navbar navbar-default">
@@ -288,7 +343,7 @@ class App extends Component {
                 </nav>
                 <div className="container ">
                     <div className="jumbotron bg-info">
-                        <h1 className="App-title">ACRN Tinnitus Protocol</h1>
+                        <h1 className="App-title">ACRN Protocol</h1>
                     </div>
                     <p>This is my attempt at implementing the <a
                         href="https://www.thetinnitusclinic.co.uk/tinnitus-treatment/acoustic-neuromodulation/">Acoustic Coordinated Reset
@@ -305,6 +360,9 @@ class App extends Component {
                             </li>
                             <li>Adjust the volume until it is a little bit louder than your tinnitus tone.</li>
                             <li>Switch from "Tone" to "Sequence" mode</li>
+                            <li>13858</li>
+                            <li>1628  -42.05</li>
+                            <li>14063</li>
                         </ul>
                     </div>
                     <p>Inspired by <a
@@ -349,10 +407,25 @@ class App extends Component {
                             Volume
                             <Slider
                                 min={-80}
-                                max={0}
+                                max={-30}
                                 value={volume}
                                 onChange={this.handleVolumeChange}
                             />
+                        </div>
+                        <div>
+                            <input className='volume-value' onChange={this.handleTextVolumeChange} value={volume}/>
+                        </div>
+                        <div>
+                            Course
+                        </div>
+                        <div>
+                            <input className='course-value' onChange={this.handleTextCourseChange} value={course}/>
+                        </div>
+                        <div>
+                            Interval
+                        </div>
+                        <div>
+                            <input className='interval-value' onChange={this.handleTextIntervalChange} value={interval}/>
                         </div>
                     </div>
                 </div>

@@ -8,11 +8,17 @@ export const STOP_SEQ_TEXT = "Stop Pattern";
 
 export const VOLUME_KEY = "volume";
 export const FREQ_KEY = "freq";
+export const FREQS_KEY = "frequencies";
 export const PLAYER_STATE_KEY = "playerState";
+export const COURSE_KEY = "course";
+export const INTERVAL_KEY = "interval";
 
 // initial config values
 export const DEFAULT_FREQ = 13640;
-export const DEFAULT_VOLUME = -40;
+export const DEFAULT_VOLUME = -42;
+// 13858
+// 1628  -42.05
+// 14063
 
 export const LOOP_REPEAT = 4;
 export const REST_LENGTH = 4;

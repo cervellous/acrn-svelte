@@ -19,43 +19,30 @@ class App extends Component {
 
         // use local storage for volume and frequency
         let localVolume = this.getLocalStorageInt(constants.VOLUME_KEY, constants.DEFAULT_VOLUME);
-        let localFreq = this.getLocalStorageInt(constants.FREQ_KEY, constants.DEFAULT_FREQ);
+        let localFreqs = this.getLocalStorageFrequencies();
         let playerState = this.getLocalStorageInt(constants.PLAYER_STATE_KEY, constants.PLAYER_STATES.PLAY_TONE);
+        let localCourse = this.getLocalStorageInt(constants.COURSE_KEY, constants.COURSE_MINS);
+        let localInterval = this.getLocalStorageInt(constants.INTERVAL_KEY, constants.INTERVAL_MINS);
 
         let buttonText = constants.PLAY_TONE_TEXT;
         if (playerState === constants.PLAYER_STATES.PLAY_ACRN) {
             buttonText = constants.PLAY_SEQ_TEXT;
         }
 
-        // generate initial sequence
-        let freqSeq = this.generateSequence();
-
         // setup initial state
         this.state = {
-            freq: localFreq,
-            freqSeq: freqSeq,
+            frequencies: localFreqs,
             volume: localVolume,
-            course: constants.COURSE_MINS,
-            interval: constants.INTERVAL_MINS,
+            course: localCourse,
+            interval: localInterval,
             playState: playerState,
-            enableSlider: true,
             isPlaying: false,
             userStarted: false,
             playButtonText: buttonText,
-            synth: new Tone.PolySynth(6, Tone.Synth, {
-                "oscillator": {
-                    "type": "sine"
-                },
-                "envelope": {
-                    "attack": 0.1,
-                    "decay": 0.00,
-                    "sustain": 0.07,
-                    "release": 0.08,
-                }
-            }).toMaster(),
             osc: new Tone.Oscillator({
                 "frequency": constants.DEFAULT_FREQ
-            }).toMaster()
+            }).toMaster(),
+            nextFreqId: localFreqs.length > 0 ? Math.max(...localFreqs.map(f => f.id)) + 1 : 1
         }
     }
 
@@ -68,6 +55,44 @@ class App extends Component {
         }
     };
 
+    getLocalStorageFrequencies = () => {
+        let storedFreqs = localStorage.getItem(constants.FREQS_KEY);
+        if (storedFreqs) {
+            try {
+                let parsed = JSON.parse(storedFreqs);
+                return parsed.map(f => ({
+                    id: f.id,
+                    freq: f.freq,
+                    synth: this.createSynth(),
+                    sequence: null
+                }));
+            } catch (e) {
+                // If parsing fails, return default
+            }
+        }
+        // Default: one frequency
+        return [{
+            id: 0,
+            freq: constants.DEFAULT_FREQ,
+            synth: this.createSynth(),
+            sequence: null
+        }];
+    };
+
+    createSynth = () => {
+        return new Tone.PolySynth(6, Tone.Synth, {
+            "oscillator": {
+                "type": "sine"
+            },
+            "envelope": {
+                "attack": 0.1,
+                "decay": 0.00,
+                "sustain": 0.07,
+                "release": 0.08,
+            }
+        }).toMaster();
+    };
+
 
     componentDidMount = () => {
         //set the bpm and initialize sound context
@@ -78,24 +103,104 @@ class App extends Component {
         Tone.Master.volume.rampTo(-Infinity, 0.05);
     };
 
-    handleTextFreqChange = (e) => {
-        let value = parseInt(e.target.value, 10);
-        if (!isNaN(value)) {
-            this.handleFreqChange(value);
+    componentWillUnmount = () => {
+        // Clean up all audio resources to prevent memory leaks
+        let {frequencies, osc, isPlaying} = this.state;
+
+        // Stop and clear intervals/timeouts
+        if (this.courseInterval) {
+            clearInterval(this.courseInterval);
+        }
+        if (this.resumeTimeout) {
+            clearTimeout(this.resumeTimeout);
+        }
+
+        // Stop transport
+        Tone.Transport.stop();
+        Tone.Transport.cancel();
+
+        // Dispose all sequences
+        frequencies.forEach(freqObj => {
+            if (freqObj.sequence) {
+                freqObj.sequence.cancel();
+                freqObj.sequence.dispose();
+            }
+            if (freqObj.synth) {
+                freqObj.synth.dispose();
+            }
+        });
+
+        // Dispose oscillator
+        if (osc) {
+            if (isPlaying) {
+                osc.stop();
+            }
+            osc.dispose();
         }
     };
 
-    handleFreqChange = value => {
-        let {osc} = this.state;
-        osc.frequency.value = value;
-        let newFreqs = this.generateSequence(value);
+    handleTextFreqChange = (id, e) => {
+        let value = parseInt(e.target.value, 10);
+        if (!isNaN(value) && value >= constants.MIN_FREQ && value <= constants.MAX_FREQ) {
+            this.handleFreqChange(id, value);
+        }
+    };
 
-        this.setState({
-            freq: value,
-            freqSeq: newFreqs,
+    handleFreqChange = (id, value) => {
+        let {frequencies, osc} = this.state;
+        let updatedFreqs = frequencies.map(f => {
+            if (f.id === id) {
+                return {...f, freq: value};
+            }
+            return f;
         });
 
-        localStorage.setItem(constants.FREQ_KEY, value);
+        // Update oscillator if in tone mode and only one frequency
+        if (updatedFreqs.length === 1) {
+            osc.frequency.value = value;
+        }
+
+        this.setState({frequencies: updatedFreqs});
+        this.saveFrequenciesToLocalStorage(updatedFreqs);
+    };
+
+    addFrequency = () => {
+        let {frequencies, nextFreqId, isPlaying} = this.state;
+        if (isPlaying) return; // Don't allow adding while playing
+
+        let newFreq = {
+            id: nextFreqId,
+            freq: constants.DEFAULT_FREQ,
+            synth: this.createSynth(),
+            sequence: null
+        };
+
+        let updatedFreqs = [...frequencies, newFreq];
+        this.setState({
+            frequencies: updatedFreqs,
+            nextFreqId: nextFreqId + 1
+        });
+        this.saveFrequenciesToLocalStorage(updatedFreqs);
+    };
+
+    removeFrequency = (id) => {
+        let {frequencies, isPlaying} = this.state;
+        if (isPlaying) return; // Don't allow removing while playing
+        if (frequencies.length <= 1) return; // Keep at least one frequency
+
+        let freqToRemove = frequencies.find(f => f.id === id);
+        if (freqToRemove && freqToRemove.synth) {
+            freqToRemove.synth.dispose();
+        }
+
+        let updatedFreqs = frequencies.filter(f => f.id !== id);
+        this.setState({frequencies: updatedFreqs});
+        this.saveFrequenciesToLocalStorage(updatedFreqs);
+    };
+
+    saveFrequenciesToLocalStorage = (frequencies) => {
+        let toSave = frequencies.map(f => ({id: f.id, freq: f.freq}));
+        localStorage.setItem(constants.FREQS_KEY, JSON.stringify(toSave));
     };
 
 
@@ -103,13 +208,14 @@ class App extends Component {
     handleTextCourseChange = (e) => {
         let value = parseInt(e.target.value, 10);
         if (!isNaN(value)) {
-            this.handleFreqChange(value);
+            this.handleCourseChange(value);
         }
     };
     handleCourseChange = value => {
         this.setState({
             course: value,
         });
+        localStorage.setItem(constants.COURSE_KEY, value);
     };
 
     handleTextIntervalChange = (e) => {
@@ -122,6 +228,7 @@ class App extends Component {
         this.setState({
             interval: value,
         });
+        localStorage.setItem(constants.INTERVAL_KEY, value);
     };
 
 
@@ -135,62 +242,131 @@ class App extends Component {
 
             // create the interval that pauses every courseMs
             this.courseInterval = setInterval(() => {
-                Tone.Master.volume.rampTo(-Infinity, 0.05);
-                Tone.Transport.stop();
+                // Stop playback
+                this.stopPlayback(playState);
+
+                // Clear any existing resume timeout to prevent memory leak
+                if (this.resumeTimeout) {
+                    clearTimeout(this.resumeTimeout);
+                }
+
                 // resume after intervalMs
-                this.resumeTimeout = setTimeout(() => {        
-                    Tone.Transport.start();
-                    Tone.Master.volume.rampTo(volume, 0.05);
+                this.resumeTimeout = setTimeout(() => {
+                    // Restart playback
+                    this.startPlayback(playState);
                 }, intervalMs);
             }, courseMs);
         } else {
             Tone.Master.volume.rampTo(-Infinity, 0.05);
             Tone.Transport.stop();
-            clearInterval(this.courseInterval);
-            clearTimeout(this.resumeTimeout);
+            // Cancel all scheduled events on Transport to prevent memory buildup
+            Tone.Transport.cancel(0);
+            if (this.courseInterval) {
+                clearInterval(this.courseInterval);
+                this.courseInterval = null;
+            }
+            if (this.resumeTimeout) {
+                clearTimeout(this.resumeTimeout);
+                this.resumeTimeout = null;
+            }
         }
         this.updatePlayState(!isPlaying, playState);
         this.setState({isPlaying: !isPlaying});
     };
 
-    playAcrn = () => {
-        let {synth, freqSeq, freq} = this.state;
-        let seqCount = 0;
-        let freqList = this.generateFreqs(freq);
-        let currentFreqList = [];
-        let maxPatternLength = constants.LOOP_REPEAT * freqList.length;
-        let newSequence = new Tone.Sequence((time, frequency) => {
-            seqCount++;
-            if (seqCount < maxPatternLength) {
-                if (currentFreqList.length === 0) {
-                    currentFreqList = this.shuffle(freqList.slice());
+    stopPlayback = (playState) => {
+        Tone.Master.volume.rampTo(-Infinity, 0.05);
+        Tone.Transport.stop();
+        Tone.Transport.cancel(0);
+
+        let {frequencies, osc} = this.state;
+
+        if (playState === constants.PLAYER_STATES.PLAY_ACRN) {
+            // Stop and dispose all sequences
+            let updatedFrequencies = frequencies.map(freqObj => {
+                if (freqObj.sequence) {
+                    freqObj.sequence.cancel();
+                    freqObj.sequence.dispose();
                 }
-                synth.triggerAttackRelease(currentFreqList.pop(), "4n");
-            } else {
-                if (seqCount < maxPatternLength + constants.REST_LENGTH) {
-                    // do nothing
-                } else {
-                    seqCount = 0;
-                }
+                return {...freqObj, sequence: null};
+            });
+            this.setState({frequencies: updatedFrequencies});
+        } else if (playState === constants.PLAYER_STATES.PLAY_TONE) {
+            osc.stop();
+        }
+    };
+
+    startPlayback = (playState) => {
+        let {volume, frequencies, osc} = this.state;
+        Tone.Transport.start();
+        Tone.Master.volume.rampTo(volume, 0.05);
+
+        if (playState === constants.PLAYER_STATES.PLAY_ACRN) {
+            this.playAcrn();
+        } else if (playState === constants.PLAYER_STATES.PLAY_TONE) {
+            if (frequencies.length === 1) {
+                osc.frequency.value = frequencies[0].freq;
             }
-        }, freqSeq);
-        this.setState({sequence: newSequence});
-        newSequence.set({loop: true});
-        newSequence.start(0);
+            osc.start();
+        }
+    };
+
+    playAcrn = () => {
+        let {frequencies} = this.state;
+        let freqSeq = this.generateSequence();
+
+        // Create a sequence for each frequency
+        let updatedFrequencies = frequencies.map(freqObj => {
+            // Dispose old sequence if it exists (prevent memory leak)
+            if (freqObj.sequence) {
+                freqObj.sequence.cancel();
+                freqObj.sequence.dispose();
+            }
+
+            let seqCount = 0;
+            let freqList = this.generateFreqs(freqObj.freq);
+            let currentFreqList = [];
+            let maxPatternLength = constants.LOOP_REPEAT * freqList.length;
+
+            let newSequence = new Tone.Sequence((time, frequency) => {
+                seqCount++;
+                if (seqCount < maxPatternLength) {
+                    if (currentFreqList.length === 0) {
+                        currentFreqList = this.shuffle(freqList.slice());
+                    }
+                    freqObj.synth.triggerAttackRelease(currentFreqList.pop(), "4n");
+                } else {
+                    if (seqCount < maxPatternLength + constants.REST_LENGTH) {
+                        // do nothing
+                    } else {
+                        seqCount = 0;
+                    }
+                }
+            }, freqSeq);
+
+            newSequence.set({loop: true});
+            newSequence.start(0);
+
+            return {...freqObj, sequence: newSequence};
+        });
+
+        this.setState({frequencies: updatedFrequencies});
     };
 
     updatePlayState = (isPlaying, playState) => {
-        let {osc, volume} = this.state;
+        let {osc, volume, frequencies} = this.state;
         if (isPlaying) {
             switch (playState) {
                 case constants.PLAYER_STATES.PLAY_ACRN:
-                    this.setState({playButtonText: constants.STOP_SEQ_TEXT,
-                    enableSlider: false});
+                    this.setState({playButtonText: constants.STOP_SEQ_TEXT});
                     Tone.Master.volume.rampTo(volume, 0.1);
                     this.playAcrn();
                     break;
                 case constants.PLAYER_STATES.PLAY_TONE:
                     this.setState({playButtonText: constants.STOP_TONE_TEXT});
+                    if (frequencies.length === 1) {
+                        osc.frequency.value = frequencies[0].freq;
+                    }
                     osc.start();
                     break;
                 default:
@@ -201,11 +377,17 @@ class App extends Component {
             switch (playState) {
                 case constants.PLAYER_STATES.PLAY_ACRN:
                     this.setState({playButtonText: constants.PLAY_SEQ_TEXT});
-                    let {sequence} = this.state;
-                    sequence.cancel();
-                    sequence.dispose();
-                    this.setState({enableSlider: true});
-
+                    // Stop and dispose all sequences
+                    let updatedFrequencies = frequencies.map(freqObj => {
+                        if (freqObj.sequence) {
+                            freqObj.sequence.cancel();
+                            freqObj.sequence.dispose();
+                        }
+                        return {...freqObj, sequence: null};
+                    });
+                    this.setState({frequencies: updatedFrequencies});
+                    // Cancel all scheduled events on Transport
+                    Tone.Transport.cancel(0);
                     break;
                 case constants.PLAYER_STATES.PLAY_TONE:
                     this.setState({playButtonText: constants.PLAY_TONE_TEXT});
@@ -307,26 +489,25 @@ class App extends Component {
         localStorage.setItem(constants.VOLUME_KEY, volume);
     };
 
-    freqSliderTooltip = (props) => {
+    freqSliderTooltip = (freqValue) => (props) => {
         const {dragging, index, ...restProps} = props;
-        const {freq} = this.state;
         const Handle = Slider.Handle;
         return (
             <Tooltip
                 prefixCls="rc-slider-tooltip"
-                overlay={freq}
+                overlay={freqValue}
                 visible={dragging}
                 placement="top"
                 key={index}
             >
-                <Handle value={freq} {...restProps} />
+                <Handle value={freqValue} {...restProps} />
             </Tooltip>
         );
     };
 
 
     render = () => {
-        let {freq, enableSlider, volume, playButtonText, playState, course, interval} = this.state;
+        let {frequencies, volume, playButtonText, playState, course, interval, isPlaying} = this.state;
         return (
             <div className="App">
                 <nav className="navbar navbar-default">
@@ -360,9 +541,7 @@ class App extends Component {
                             </li>
                             <li>Adjust the volume until it is a little bit louder than your tinnitus tone.</li>
                             <li>Switch from "Tone" to "Sequence" mode</li>
-                            <li>13858</li>
-                            <li>1628  -42.05</li>
-                            <li>14063</li>
+                            <li>For multiple simultaneous tones, use the "Add Frequency" button in Sequence mode</li>
                         </ul>
                     </div>
                     <p>Inspired by <a
@@ -378,27 +557,60 @@ class App extends Component {
                         </ToggleButtonGroup>
                         <br/>
                         <br/>
-                        <div className='slider'>
-                            Frequency
-                            <Slider
-                                min={constants.MIN_FREQ}
-                                max={constants.MAX_FREQ}
-                                value={freq}
-                                onChange={this.handleFreqChange}
-                                handle={this.freqSliderTooltip}
-                                disabled={!enableSlider}
-                            />
-                        </div>
-                        <div>
-                            <input className='freq-value' onChange={this.handleTextFreqChange} value={freq}/>
-                        </div>
-                        {playState == constants.PLAYER_STATES.PLAY_ACRN &&
-                        <div>
-                            <br/>
-                            <i>frequencies used in sequence: {this.generateFreqs(freq).map((value, index) => ((index ? ', ' : '') + value))}</i>
+                        {playState == constants.PLAYER_STATES.PLAY_TONE && frequencies.length > 1 &&
+                        <div className="alert alert-warning">
+                            Note: Tone mode only supports one frequency. Using the first frequency: {frequencies[0].freq} Hz
                         </div>
                         }
-                        <br/>
+                        {frequencies.map((freqObj, index) => (
+                            <div key={freqObj.id} style={{marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '5px'}}>
+                                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                    <h4>Frequency {index + 1}</h4>
+                                    {frequencies.length > 1 && !isPlaying &&
+                                        <Button
+                                            className='btn-danger btn-sm'
+                                            onClick={() => this.removeFrequency(freqObj.id)}>
+                                            Remove
+                                        </Button>
+                                    }
+                                </div>
+                                <div className='slider'>
+                                    Frequency
+                                    <Slider
+                                        min={constants.MIN_FREQ}
+                                        max={constants.MAX_FREQ}
+                                        value={freqObj.freq}
+                                        onChange={(value) => this.handleFreqChange(freqObj.id, value)}
+                                        handle={this.freqSliderTooltip(freqObj.freq)}
+                                        disabled={isPlaying}
+                                    />
+                                </div>
+                                <div>
+                                    <input
+                                        className='freq-value'
+                                        onChange={(e) => this.handleTextFreqChange(freqObj.id, e)}
+                                        value={freqObj.freq}
+                                        disabled={isPlaying}
+                                    />
+                                </div>
+                                {playState == constants.PLAYER_STATES.PLAY_ACRN &&
+                                <div>
+                                    <br/>
+                                    <i>frequencies used in sequence: {this.generateFreqs(freqObj.freq).map((value, index) => ((index ? ', ' : '') + value))}</i>
+                                </div>
+                                }
+                            </div>
+                        ))}
+                        {playState == constants.PLAYER_STATES.PLAY_ACRN && !isPlaying &&
+                        <div>
+                            <Button
+                                className='btn-primary'
+                                onClick={this.addFrequency}>
+                                Add Frequency
+                            </Button>
+                            <br/><br/>
+                        </div>
+                        }
                         <p>
                             <Button className='btn-success btn-lg'
                                     onClick={this.handleClickPlay}>{playButtonText}</Button>

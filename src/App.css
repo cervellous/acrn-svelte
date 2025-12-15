@@ -1,5 +1,6 @@
 .App {
   text-align: center;
+  min-height: 100vh;
 }
 
 .App-logo {
@@ -32,8 +33,16 @@
   margin-right: 30%;
 }
 
-.freq-value {
+.freq-value,
+.volume-value,
+.course-value,
+.interval-value {
   width: 4em;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--border-color);
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 .instructions {
@@ -41,6 +50,62 @@
 }
 
 .jumbotron {
-  background-color: #eee1bb !important;
+  background-color: var(--jumbotron-bg) !important;
   padding: 0.5em 0.6em;
+}
+
+.container {
+  background-color: var(--container-bg);
+}
+
+.navbar-default {
+  background-color: var(--navbar-bg) !important;
+  border-color: var(--navbar-border) !important;
+}
+
+.navbar-default .navbar-nav > li > a {
+  color: var(--text-color) !important;
+}
+
+.navbar-default .navbar-nav > li > a:hover {
+  color: var(--link-color) !important;
+}
+
+a {
+  color: var(--link-color);
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Dark mode specific overrides for frequency boxes */
+  div[style*="border"] {
+    background-color: var(--freq-box-bg) !important;
+    border-color: var(--freq-box-border) !important;
+  }
+
+  /* Slider track */
+  .rc-slider-track {
+    background-color: #5dade2 !important;
+  }
+
+  .rc-slider-rail {
+    background-color: #444 !important;
+  }
+
+  .rc-slider-handle {
+    border-color: #5dade2 !important;
+    background-color: var(--input-bg) !important;
+  }
+
+  .rc-slider-handle:hover,
+  .rc-slider-handle:active,
+  .rc-slider-handle:focus {
+    border-color: #7ec8f0 !important;
+  }
+
+  /* Alert warning */
+  .alert-warning {
+    background-color: #664d03 !important;
+    border-color: #997404 !important;
+    color: #ffecb5 !important;
+  }
 }

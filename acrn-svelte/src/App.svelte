@@ -68,14 +68,15 @@
 
   // Tone.js objects
   let osc;
-  let courseInterval;
-  let resumeTimeout;
+  let phaseTimeout;
   let progressInterval;
 
   // Progress tracking
   let progress = 0;
   let currentPhase = 'course'; // 'course' or 'interval'
   let phaseStartTime = 0;
+  let elapsedTime = '0:00';
+  let totalTime = '0:00';
 
   // Derived/reactive state (auto-computed)
   $: playButtonText = playState === constants.PLAYER_STATES.PLAY_ACRN
@@ -103,11 +104,8 @@
     // Clean up all audio resources to prevent memory leaks
 
     // Stop and clear intervals/timeouts
-    if (courseInterval) {
-      clearInterval(courseInterval);
-    }
-    if (resumeTimeout) {
-      clearTimeout(resumeTimeout);
+    if (phaseTimeout) {
+      clearTimeout(phaseTimeout);
     }
     if (progressInterval) {
       clearInterval(progressInterval);
@@ -299,6 +297,13 @@
   }
 
   // ===== PROGRESS TRACKING =====
+  function formatTime(milliseconds) {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
   function updateProgress() {
     if (!isPlaying) return;
 
@@ -307,12 +312,18 @@
     const totalDuration = currentPhase === 'course' ? course * 60 * 1000 : interval * 60 * 1000;
 
     progress = Math.min((elapsed / totalDuration) * 100, 100);
+
+    // Update time displays
+    elapsedTime = formatTime(elapsed);
+    totalTime = formatTime(totalDuration);
   }
 
   function startProgressTracking() {
     phaseStartTime = Date.now();
     currentPhase = 'course';
     progress = 0;
+    elapsedTime = '0:00';
+    totalTime = formatTime(course * 60 * 1000);
 
     // Update progress every 100ms for smooth animation
     progressInterval = setInterval(updateProgress, 100);
@@ -325,6 +336,8 @@
     }
     progress = 0;
     currentPhase = 'course';
+    elapsedTime = '0:00';
+    totalTime = '0:00';
   }
 
   // ===== EVENT HANDLERS =====
@@ -429,66 +442,78 @@
     localStorage.setItem(constants.PLAYER_STATE_KEY, newPlayState);
   }
 
-  function handleClickPlay() {
-    let courseMs = course * 60 * 1000;
-    let intervalMs = interval * 60 * 1000;
+  function scheduleNextPhase() {
+    if (!isPlaying) return;
 
+    const courseMs = course * 60 * 1000;
+    const intervalMs = interval * 60 * 1000;
+
+    if (currentPhase === 'course') {
+      // Schedule end of course phase
+      phaseTimeout = setTimeout(() => {
+        // Stop playback and switch to interval
+        stopPlayback(playState);
+        currentPhase = 'interval';
+        phaseStartTime = Date.now();
+        progress = 0;
+        elapsedTime = '0:00';
+        totalTime = formatTime(intervalMs);
+
+        // Schedule next phase (back to course)
+        scheduleNextPhase();
+      }, courseMs);
+    } else {
+      // In interval phase, schedule resumption of course
+      phaseTimeout = setTimeout(() => {
+        // Switch back to course and restart playback
+        currentPhase = 'course';
+        phaseStartTime = Date.now();
+        progress = 0;
+        elapsedTime = '0:00';
+        totalTime = formatTime(courseMs);
+        startPlayback(playState);
+
+        // Schedule next phase (interval)
+        scheduleNextPhase();
+      }, intervalMs);
+    }
+  }
+
+  function handleClickPlay() {
     if (!isPlaying) {
+      // Set playing state first
+      isPlaying = true;
+
       Tone.Transport.start();
       Tone.Master.volume.rampTo(volume, 0.05);
 
       // Start progress tracking
       startProgressTracking();
 
-      // create the interval that pauses every courseMs
-      courseInterval = setInterval(() => {
-        // Stop playback (includes cleanup)
-        stopPlayback(playState);
+      // Start playback
+      updatePlayState(true, playState);
 
-        // Switch to interval phase
-        currentPhase = 'interval';
-        phaseStartTime = Date.now();
-        progress = 0;
-
-        // Clear any existing resume timeout to prevent memory leak
-        if (resumeTimeout) {
-          clearTimeout(resumeTimeout);
-        }
-
-        // resume after intervalMs
-        resumeTimeout = setTimeout(() => {
-          // Switch back to course phase
-          currentPhase = 'course';
-          phaseStartTime = Date.now();
-          progress = 0;
-
-          // Restart playback
-          startPlayback(playState);
-        }, intervalMs);
-      }, courseMs);
+      // Schedule the first phase transition (course → interval)
+      scheduleNextPhase();
     } else {
+      // Set playing state first
+      isPlaying = false;
+
       // Stop playback using consistent cleanup function
       stopPlayback(playState);
 
       // Stop progress tracking
       stopProgressTracking();
 
-      // Clear timers
-      if (courseInterval) {
-        clearInterval(courseInterval);
-        courseInterval = null;
-      }
-      if (resumeTimeout) {
-        clearTimeout(resumeTimeout);
-        resumeTimeout = null;
+      // Clear phase timer
+      if (phaseTimeout) {
+        clearTimeout(phaseTimeout);
+        phaseTimeout = null;
       }
 
-      // Mute volume
-      Tone.Master.volume.rampTo(-Infinity, 0.05);
+      // Update play state
+      updatePlayState(false, playState);
     }
-
-    updatePlayState(!isPlaying, playState);
-    isPlaying = !isPlaying;
   }
 </script>
 
@@ -634,7 +659,7 @@
       <div class="progress-container">
         <div class="progress-label">
           <span class="phase-name">{currentPhase === 'course' ? 'Course' : 'Interval'}</span>
-          <span class="progress-percentage">{Math.round(progress)}%</span>
+          <span class="progress-time">{elapsedTime} / {totalTime}</span>
         </div>
         <div class="progress-bar">
           <div class="progress-fill" style="width: {progress}%"></div>
@@ -900,9 +925,11 @@
     letter-spacing: 0.5px;
   }
 
-  .progress-percentage {
+  .progress-time {
     color: var(--text-color);
     opacity: 0.8;
+    font-family: monospace;
+    font-size: 1rem;
   }
 
   .progress-bar {

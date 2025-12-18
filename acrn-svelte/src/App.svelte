@@ -705,6 +705,7 @@
       <input id="interval-input" class="interval-value" type="number" value={interval} on:input={handleIntervalChange} />
     </div>
   </div>
+  <footer>&nbsp;</footer>
 </div>
 
 <style>

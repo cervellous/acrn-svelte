@@ -174,8 +174,14 @@
     frequencies = frequencies.map(freqObj => {
       // Dispose old sequence if it exists (prevent memory leak)
       if (freqObj.sequence) {
+        freqObj.sequence.stop();
         freqObj.sequence.cancel();
         freqObj.sequence.dispose();
+      }
+      // Also dispose and recreate synth to clear voice pool
+      if (freqObj.synth) {
+        freqObj.synth.dispose();
+        freqObj.synth = createSynth();
       }
 
       let seqCount = 0;

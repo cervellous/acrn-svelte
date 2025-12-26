@@ -645,12 +645,14 @@
 
     <!-- Add Frequency Button -->
     {#if playState === constants.PLAYER_STATES.PLAY_ACRN && !isPlaying}
+    <div class="add-frequency-btn-wrapper">
       <div>
         <button class="btn btn-primary" on:click={addFrequency}>
           Add Frequency
         </button>
         <br/><br/>
       </div>
+    </div>
     {/if}
 
     <!-- Play Button -->
@@ -859,6 +861,12 @@
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 1rem;
+  }
+
+  .add-frequency-btn-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: row-reverse;
   }
 
   .btn {

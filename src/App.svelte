@@ -541,7 +541,7 @@
     </div>
 
     <p>
-      This is a fork of http://github.com/generalfuzz/acrn-react, an implementation of the
+      This is a fork of <a href="http://github.com/generalfuzz/acrn-react">acrn-react</a>, an implementation of the
       <a href="https://www.thetinnitusclinic.co.uk/tinnitus-treatment/acoustic-neuromodulation/">
         Acoustic Coordinated Reset Neuromodulation
       </a> tinnitus treatment protocol using

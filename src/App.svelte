@@ -528,8 +528,8 @@
   <nav class="navbar">
     <div class="container">
       <ul class="nav-links">
-        <li><a href="http://github.com/generalfuzz/acrn-react">Source</a></li>
-        <li><a href="http://generalfuzz.net/contact.php">Contact</a></li>
+        <li><a href="https://github.com/cervellous/acrn-svelte">Source</a></li>
+        <li><a href="http://github.com/generalfuzz/acrn-react">Original</a></li>
         <li><a href="http://www.generalfuzz.net">Music</a></li>
       </ul>
     </div>

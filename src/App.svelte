@@ -541,13 +541,13 @@
     </div>
 
     <p>
-      This is my attempt at implementing the
+      This is a fork of http://github.com/generalfuzz/acrn-react, an implementation of the
       <a href="https://www.thetinnitusclinic.co.uk/tinnitus-treatment/acoustic-neuromodulation/">
         Acoustic Coordinated Reset Neuromodulation
       </a> tinnitus treatment protocol using
       <a href="https://www.tinnitustalk.com/attachments/tass-et-al_rnn-2012_counteracting-tinnitus-by-acoustic-cr-neuromodulation-pdf.183/">
         this paper
-      </a> as a guide.
+      </a> as a guide. Changes allow for the ACRN tone to cycle on and off (course/interval), play ACRN tones for multiple frequencies simultaneously, and fixes memory leaks from the original implementation.
     </p>
 
     <div class="instructions">

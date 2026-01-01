@@ -8,7 +8,8 @@ export default defineConfig({
   plugins: [
     svelte(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: false,
+      injectRegister: null,
       manifest: {
         name: 'ACRN Protocol',
         short_name: 'ACRN',

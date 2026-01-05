@@ -548,9 +548,17 @@
 
 <!-- ===== MARKUP ===== -->
 <div class="App">
+  <nav class="navbar">
+    <div class="container">
+      <ul class="nav-links">
+        <li><a href="https://github.com/cervellous/acrn-svelte">Source</a></li>
+        <li><a href="http://github.com/generalfuzz/acrn-react">Original</a></li>
+        <li><a href="http://www.generalfuzz.net">Music</a></li>
+      </ul>
+    </div>
+  </nav>
   <div class="container">
     <h1>ACRN Protocol</h1>
-    <br/>
 
     <!-- Mode Toggle -->
     <div class="mode-toggle">
@@ -708,46 +716,40 @@
       <input class="volume-value" type="number" value={volume} on:input={handleTextVolumeChange} />
     </div>
 
-    <p>
-      This is a fork of <a href="http://github.com/generalfuzz/acrn-react">acrn-react</a>, an implementation of the
-      <a href="https://www.thetinnitusclinic.co.uk/tinnitus-treatment/acoustic-neuromodulation/">
-        Acoustic Coordinated Reset Neuromodulation
-      </a> tinnitus treatment protocol using
-      <a href="https://www.tinnitustalk.com/attachments/tass-et-al_rnn-2012_counteracting-tinnitus-by-acoustic-cr-neuromodulation-pdf.183/">
-        this paper
-      </a> as a guide. Changes allow for the ACRN tone to cycle on and off, play ACRN tones for multiple frequencies simultaneously, and fixes memory leaks from the original implementation.
-    </p>
+    <br/>
+    <div class="frequency-card">
+      <p>
+        This is a fork of <a href="http://github.com/generalfuzz/acrn-react">acrn-react</a>, an implementation of the
+        <a href="https://www.thetinnitusclinic.co.uk/tinnitus-treatment/acoustic-neuromodulation/">
+          Acoustic Coordinated Reset Neuromodulation
+        </a> tinnitus treatment protocol using
+        <a href="https://www.tinnitustalk.com/attachments/tass-et-al_rnn-2012_counteracting-tinnitus-by-acoustic-cr-neuromodulation-pdf.183/">
+          this paper
+        </a> as a guide. Changes allow for the ACRN tone to cycle on and off, play ACRN tones for multiple frequencies simultaneously, and fixes memory leaks from the original implementation.
+      </p>
 
-    <div class="instructions">
-      <ul>
-        <li>First lower the volume on your device, so it is not too loud to start.</li>
-        <li>Start the tone by pressing the "Play Tone" button.</li>
-        <li>Adjust the frequency slider until it matches your tinnitus tone. You can also type in the frequency if you know it already.</li>
-        <li>Adjust the volume until it is a little bit louder than your tinnitus tone.</li>
-        <li>Switch from "Tone" to "Sequence" mode</li>
-        <li>For multiple simultaneous tones, use the "Add Frequency" button in Sequence mode</li>
-      </ul>
+      <div class="instructions">
+        <ul>
+          <li>First lower the volume on your device, so it is not too loud to start.</li>
+          <li>Start the tone by pressing the "Play Tone" button.</li>
+          <li>Adjust the frequency slider until it matches your tinnitus tone. You can also type in the frequency if you know it already.</li>
+          <li>Adjust the volume until it is a little bit louder than your tinnitus tone.</li>
+          <li>Switch from "Tone" to "Sequence" mode</li>
+          <li>For multiple simultaneous tones, use the "Add Frequency" button in Sequence mode</li>
+        </ul>
+      </div>
+
+      <p>
+        Inspired by
+        <a href="http://www.tinnitustalk.com/threads/acoustic-cr%C2%AE-neuromodulation-do-it-yourself-guide.1469/">this</a>
+        thread on <a href="http://www.tinnitustalk.com">tinnitustalk.com</a> and
+        <a href="http://www.reddit.com/r/tinnitus/comments/15x99f/recent_tinnitus_study_and_my_attempt_at_utilizing/">this</a>
+        reddit thread.
+      </p>
     </div>
-
-    <p>
-      Inspired by
-      <a href="http://www.tinnitustalk.com/threads/acoustic-cr%C2%AE-neuromodulation-do-it-yourself-guide.1469/">this</a>
-      thread on <a href="http://www.tinnitustalk.com">tinnitustalk.com</a> and
-      <a href="http://www.reddit.com/r/tinnitus/comments/15x99f/recent_tinnitus_study_and_my_attempt_at_utilizing/">this</a>
-      reddit thread.
-    </p>
 
   </div>
   <footer>
-    <nav class="navbar">
-      <div class="container">
-        <ul class="nav-links">
-          <li><a href="https://github.com/cervellous/acrn-svelte">Source</a></li>
-          <li><a href="http://github.com/generalfuzz/acrn-react">Original</a></li>
-          <li><a href="http://www.generalfuzz.net">Music</a></li>
-        </ul>
-      </div>
-    </nav>
   </footer>
 </div>
 
@@ -789,7 +791,6 @@
 
   h1 {
     font-size: 2.5rem;
-    margin: 0;
   }
 
   .instructions {

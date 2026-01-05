@@ -59,12 +59,14 @@
 
   // Audio objects
   let audioContext;
+  let audioDestination;  // MediaStreamDestination for iOS compatibility
   let osc;
   let phaseTimeout;
   let progressInterval;
   let acrnSchedulerInterval;  // For scheduling ACRN tones
   let acrnTimeouts = [];  // Track all scheduled timeouts for cleanup
   let acrnOscillators = [];  // Track all active oscillators for immediate cleanup
+  let acrnGainNodes = [];  // Track all active oscillators for immediate cleanup
 
   // Progress tracking
   let progress = 0;
@@ -111,16 +113,8 @@
     acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
     acrnTimeouts = [];
 
-    // Stop all active oscillators immediately
-    acrnOscillators.forEach(osc => {
-      try {
-        osc.stop();
-        osc.disconnect();
-      } catch (e) {
-        // Oscillator may have already stopped
-      }
-    });
-    acrnOscillators = [];
+    // Clean up audio destination
+    cleanupAudioDestination();
 
     // Close audio context
     if (audioContext) {
@@ -129,6 +123,55 @@
   });
 
   // ===== AUDIO FUNCTIONS =====
+  // Set up audio destination for iOS compatibility
+  function setupAudioDestination() {
+    if (!audioContext) return;
+
+    // Create fresh MediaStreamDestination for this playback session
+    // This routes Web Audio output through an <audio> element
+    // which allows playback in iOS silent mode
+    audioDestination = audioContext.createMediaStreamDestination();
+
+    const audioElement = document.getElementById('ios-audio');
+    if (audioElement) {
+      audioElement.srcObject = audioDestination.stream;
+      audioElement.play().catch(() => {
+        // Auto-play may be blocked, but will work once user has interacted
+      });
+    }
+  }
+
+  // Clean up audio destination
+  function cleanupAudioDestination() {
+
+    // Stop all active oscillators immediately
+    acrnOscillators.forEach(oscillator => {
+      try {
+        oscillator.stop();
+        oscillator.disconnect();
+      } catch (e) {
+        // Oscillator may have already stopped
+      }
+    });
+    acrnOscillators = [];
+    acrnGainNodes.forEach(gainNode => {
+      try {
+        gainNode.stop();
+        gainNode.disconnect();
+      } catch (e) {
+        // Already stopped
+      }
+    });
+    acrnGainNodes = [];
+
+    const audioElement = document.getElementById('ios-audio');
+    if (audioElement) {
+      audioElement.pause();
+      audioElement.srcObject = null;
+    }
+    audioDestination = null;
+  }
+
   // Calculate 4 tones logarithmically spaced in [0.5*ft, 2*ft]
   // centered around ft with 2 below and 2 above
   function generateFreqs(currentFreq) {
@@ -208,18 +251,11 @@
     gainNode.gain.linearRampToValueAtTime(0, startTime + actualDuration);
 
     oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    gainNode.connect(audioDestination);
 
     // Track this oscillator for immediate cleanup if needed
     acrnOscillators.push(oscillator);
-
-    // Remove from tracking when it ends
-    oscillator.onended = () => {
-      const index = acrnOscillators.indexOf(oscillator);
-      if (index > -1) {
-        acrnOscillators.splice(index, 1);
-      }
-    };
+    acrnGainNodes.push(gainNode);
 
     oscillator.start(startTime);
     oscillator.stop(startTime + actualDuration);
@@ -233,16 +269,6 @@
     acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
     acrnTimeouts = [];
 
-    acrnOscillators.forEach(oscillator => {
-      try {
-        oscillator.stop();
-        oscillator.disconnect();
-      } catch (e) {
-        // Already stopped
-      }
-    });
-    acrnOscillators = [];
-
     const CYCLE_DURATION = 1000 / 1.5;  // 666.67ms per cycle at 1.5 Hz
     const TONE_DURATION = 0.166;  // 166ms per tone in seconds
     const ON_CYCLES = 3;  // 3 cycles with tones
@@ -251,6 +277,8 @@
 
     // Schedule ACRN pattern for each frequency
     const scheduleACRN = () => {
+      cleanupAudioDestination();
+      setupAudioDestination();
       const now = audioContext.currentTime;
 
       frequencies.forEach(freqObj => {
@@ -282,6 +310,9 @@
     if (!audioContext) return;
 
     if (isPlaying) {
+      // Set up fresh audio destination for this playback session
+      setupAudioDestination();
+
       // Resume audio context if suspended
       if (audioContext.state === 'suspended') {
         audioContext.resume();
@@ -301,7 +332,7 @@
           const gainNode = audioContext.createGain();
           const linearGain = Math.pow(10, volume / 20);
           gainNode.gain.value = linearGain;
-          gainNode.connect(audioContext.destination);
+          gainNode.connect(audioDestination);
 
           osc = audioContext.createOscillator();
           osc.type = 'sine';
@@ -316,17 +347,6 @@
           // Clear all scheduled ACRN timeouts
           acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
           acrnTimeouts = [];
-
-          // Stop all active oscillators immediately
-          acrnOscillators.forEach(oscillator => {
-            try {
-              oscillator.stop();
-              oscillator.disconnect();
-            } catch (e) {
-              // Oscillator may have already stopped
-            }
-          });
-          acrnOscillators = [];
           break;
         case constants.PLAYER_STATES.PLAY_TONE:
           // Stop the continuous tone oscillator
@@ -337,6 +357,9 @@
           }
           break;
       }
+
+      // Clean up audio destination
+      cleanupAudioDestination();
     }
   }
 
@@ -347,17 +370,6 @@
       // Clear all scheduled ACRN timeouts
       acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
       acrnTimeouts = [];
-
-      // Stop all active oscillators immediately
-      acrnOscillators.forEach(oscillator => {
-        try {
-          oscillator.stop();
-          oscillator.disconnect();
-        } catch (e) {
-          // Oscillator may have already stopped
-        }
-      });
-      acrnOscillators = [];
     } else if (playState === constants.PLAYER_STATES.PLAY_TONE) {
       // Stop the continuous tone oscillator
       if (osc) {
@@ -366,10 +378,16 @@
         osc = null;
       }
     }
+
+    // Clean up audio destination
+    cleanupAudioDestination();
   }
 
   function startPlayback(playState) {
     if (!audioContext) return;
+
+    // Set up fresh audio destination for this playback session
+    setupAudioDestination();
 
     // Resume audio context if suspended
     if (audioContext.state === 'suspended') {
@@ -383,7 +401,7 @@
       const gainNode = audioContext.createGain();
       const linearGain = Math.pow(10, volume / 20);
       gainNode.gain.value = linearGain;
-      gainNode.connect(audioContext.destination);
+      gainNode.connect(audioDestination);
 
       osc = audioContext.createOscillator();
       osc.type = 'sine';
@@ -515,7 +533,7 @@
       const gainNode = audioContext.createGain();
       const linearGain = Math.pow(10, vol / 20);
       gainNode.gain.value = linearGain;
-      gainNode.connect(audioContext.destination);
+      gainNode.connect(audioDestination);
 
       osc = audioContext.createOscillator();
       osc.type = 'sine';
@@ -665,6 +683,9 @@
 
 <!-- ===== MARKUP ===== -->
 <div class="App">
+  <!-- Audio element for iOS compatibility - routes Web Audio through media element -->
+  <audio id="ios-audio" autoplay playsinline style="display: none;"></audio>
+
   <nav class="navbar">
     <div class="container">
       <ul class="nav-links">

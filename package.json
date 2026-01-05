@@ -16,7 +16,5 @@
     "vite-plugin-singlefile": "^0.13.5"
   },
   "dependencies": {
-    "startaudiocontext": "^1.2.1",
-    "tone": "^0.12.80"
   }
 }

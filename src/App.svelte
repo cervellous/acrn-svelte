@@ -227,6 +227,7 @@
           break;
       }
     } else {
+      document.getElementById('silent').play();
       switch (playState) {
         case constants.PLAYER_STATES.PLAY_ACRN:
           // Stop transport first

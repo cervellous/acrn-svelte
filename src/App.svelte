@@ -1,7 +1,5 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import Tone from 'tone';
-  import StartAudioContext from 'startaudiocontext';
   import * as constants from './constants';
 
   // ===== HELPER FUNCTIONS =====
@@ -14,18 +12,13 @@
     }
   }
 
-  function createSynth() {
-    return new Tone.PolySynth(6, Tone.Synth, {
-      "oscillator": {
-        "type": "sine"
-      },
-      "envelope": {
-        "attack": 0.1,
-        "decay": 0.00,
-        "sustain": 0.07,
-        "release": 0.08,
-      }
-    }).toMaster();
+  function getLocalStorageBool(localKey, defaultValue) {
+    let localValue = localStorage.getItem(localKey);
+    if (localValue === null) {
+      return defaultValue;
+    } else {
+      return localValue === 'true';
+    }
   }
 
   function getLocalStorageFrequencies() {
@@ -35,9 +28,7 @@
         let parsed = JSON.parse(storedFreqs);
         return parsed.map(f => ({
           id: f.id,
-          freq: f.freq,
-          synth: createSynth(),
-          sequence: null
+          freq: f.freq
         }));
       } catch (e) {
         // If parsing fails, return default
@@ -46,9 +37,7 @@
     // Default: one frequency
     return [{
       id: 0,
-      freq: constants.DEFAULT_FREQ,
-      synth: createSynth(),
-      sequence: null
+      freq: constants.DEFAULT_FREQ
     }];
   }
 
@@ -63,13 +52,18 @@
   let course = getLocalStorageInt(constants.COURSE_KEY, constants.COURSE_MINS);
   let interval = getLocalStorageInt(constants.INTERVAL_KEY, constants.INTERVAL_MINS);
   let playState = getLocalStorageInt(constants.PLAYER_STATE_KEY, constants.PLAYER_STATES.PLAY_TONE);
+  let useOldFormula = getLocalStorageBool(constants.USE_OLD_FORMULA_KEY, false);
   let isPlaying = false;
   let nextFreqId = frequencies.length > 0 ? Math.max(...frequencies.map(f => f.id)) + 1 : 1;
 
-  // Tone.js objects
+  // Audio objects
+  let audioContext;
   let osc;
   let phaseTimeout;
   let progressInterval;
+  let acrnSchedulerInterval;  // For scheduling ACRN tones
+  let acrnTimeouts = [];  // Track all scheduled timeouts for cleanup
+  let acrnOscillators = [];  // Track all active oscillators for immediate cleanup
 
   // Progress tracking
   let progress = 0;
@@ -85,19 +79,17 @@
 
   // ===== LIFECYCLE =====
   onMount(() => {
-    // Set the bpm and initialize sound context
-    Tone.Transport.bpm.value = 90 * 4;
-    Tone.context.latencyHint = 'interactive';
+    // Initialize Web Audio API context
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-    // Create oscillator
-    osc = new Tone.Oscillator({
-      "frequency": constants.DEFAULT_FREQ
-    }).toMaster();
-
-    // Mobile audio unlock
-    StartAudioContext(Tone.context, '.App');
-    // Make sure volume is off initially
-    Tone.Master.volume.rampTo(-Infinity, 0.05);
+    // Mobile audio unlock - resume context on user interaction
+    const unlockAudio = () => {
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+    };
+    document.querySelector('.App').addEventListener('click', unlockAudio);
+    document.querySelector('.App').addEventListener('touchstart', unlockAudio);
   });
 
   onDestroy(() => {
@@ -110,53 +102,56 @@
     if (progressInterval) {
       clearInterval(progressInterval);
     }
+    if (acrnSchedulerInterval) {
+      clearInterval(acrnSchedulerInterval);
+    }
 
-    // Stop transport
-    Tone.Transport.stop();
-    Tone.Transport.cancel();
+    // Clear all ACRN timeouts
+    acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+    acrnTimeouts = [];
 
-    // Dispose all sequences
-    frequencies.forEach(freqObj => {
-      if (freqObj.sequence) {
-        freqObj.sequence.cancel();
-        freqObj.sequence.dispose();
-      }
-      if (freqObj.synth) {
-        freqObj.synth.dispose();
+    // Stop all active oscillators immediately
+    acrnOscillators.forEach(osc => {
+      try {
+        osc.stop();
+        osc.disconnect();
+      } catch (e) {
+        // Oscillator may have already stopped
       }
     });
+    acrnOscillators = [];
 
-    // Dispose oscillator
-    if (osc) {
-      if (isPlaying) {
-        osc.stop();
-      }
-      osc.dispose();
+    // Close audio context
+    if (audioContext) {
+      audioContext.close();
     }
   });
 
   // ===== AUDIO FUNCTIONS =====
+  // Calculate 4 tones logarithmically spaced in [0.5*ft, 2*ft]
+  // centered around ft with 2 below and 2 above
   function generateFreqs(currentFreq) {
-    return [
-      Math.floor(currentFreq * 0.773 - 44.5),
-      Math.floor(currentFreq * 0.903 - 21.5),
-      Math.floor(currentFreq * 1.09 + 52),
-      Math.floor(currentFreq * 1.395 + 26.5)
-    ];
-  }
+    const ft = currentFreq;
 
-  function generateSequence() {
-    // just needs to be the correct number of beats. Frequency content is ignored.
-    let freqSeq = [];
-
-    // can all be empty since tones are generated during loop play
-    for (let i = 0; i < constants.LOOP_REPEAT; i++) {
-      freqSeq.push(...[0,0,0,0]);
+    if (useOldFormula) {
+      // Old formula from previous implementation
+      return [
+        Math.floor(ft * 0.773 - 44.5),
+        Math.floor(ft * 0.903 - 21.5),
+        Math.floor(ft * 1.09 + 52),
+        Math.floor(ft * 1.395 + 26.5)
+      ];
+    } else {
+      // Correct logarithmic spacing per inst.txt
+      // Divide the 2-octave range [0.5*ft, 2*ft] into 5 equal intervals
+      // Use the 4 inner positions (skip 0.5*ft and 2*ft endpoints)
+      return [
+        Math.round(0.5 * ft * Math.pow(2, 2/5)),  // f1 ≈ 0.66 * ft
+        Math.round(0.5 * ft * Math.pow(2, 4/5)),  // f2 ≈ 0.87 * ft
+        Math.round(0.5 * ft * Math.pow(2, 6/5)),  // f3 ≈ 1.15 * ft
+        Math.round(0.5 * ft * Math.pow(2, 8/5))   // f4 ≈ 1.52 * ft
+      ];
     }
-    for (let i = 0; i < constants.REST_LENGTH + 1; i++) {
-      freqSeq.push([0]);
-    }
-    return freqSeq;
   }
 
   function shuffle(a) {
@@ -167,138 +162,202 @@
     return a;
   }
 
+  // Play a single tone using Web Audio API
+  function playTone(frequency, startTime, duration, gainValue) {
+    if (!audioContext) return;
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+
+    // Convert dB to linear gain (approximate)
+    const linearGain = Math.pow(10, gainValue / 20);
+    gainNode.gain.value = linearGain;
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    // Track this oscillator for immediate cleanup if needed
+    acrnOscillators.push(oscillator);
+
+    // Remove from tracking when it ends
+    oscillator.onended = () => {
+      const index = acrnOscillators.indexOf(oscillator);
+      if (index > -1) {
+        acrnOscillators.splice(index, 1);
+      }
+    };
+
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration);
+  }
+
+  // Main ACRN playback function using Web Audio API
   function playAcrn() {
-    let freqSeq = generateSequence();
+    if (!audioContext) return;
 
-    // Create a sequence for each frequency
-    frequencies = frequencies.map(freqObj => {
-      // Dispose old sequence if it exists (prevent memory leak)
-      if (freqObj.sequence) {
-        freqObj.sequence.stop();
-        freqObj.sequence.cancel();
-        freqObj.sequence.dispose();
+    // Clear any existing timeouts and oscillators
+    acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+    acrnTimeouts = [];
+
+    acrnOscillators.forEach(oscillator => {
+      try {
+        oscillator.stop();
+        oscillator.disconnect();
+      } catch (e) {
+        // Already stopped
       }
-      // Also dispose and recreate synth to clear voice pool
-      if (freqObj.synth) {
-        freqObj.synth.dispose();
-        freqObj.synth = createSynth();
-      }
-
-      let seqCount = 0;
-      let freqList = generateFreqs(freqObj.freq);
-      let currentFreqList = [];
-      let maxPatternLength = constants.LOOP_REPEAT * freqList.length;
-
-      let newSequence = new Tone.Sequence((time, frequency) => {
-        seqCount++;
-        if (seqCount < maxPatternLength) {
-          if (currentFreqList.length === 0) {
-            currentFreqList = shuffle(freqList.slice());
-          }
-          freqObj.synth.triggerAttackRelease(currentFreqList.pop(), "4n");
-        } else {
-          if (seqCount < maxPatternLength + constants.REST_LENGTH) {
-            // do nothing
-          } else {
-            seqCount = 0;
-          }
-        }
-      }, freqSeq);
-
-      newSequence.set({loop: true});
-      newSequence.start(0);
-
-      return {...freqObj, sequence: newSequence};
     });
+    acrnOscillators = [];
+
+    const CYCLE_DURATION = 1000 / 1.5;  // 666.67ms per cycle at 1.5 Hz
+    const TONE_DURATION = 0.166;  // 166ms per tone in seconds
+    const ON_CYCLES = 3;  // 3 cycles with tones
+    const OFF_CYCLES = 2;  // 2 cycles silent
+    const PATTERN_DURATION = (ON_CYCLES + OFF_CYCLES) * CYCLE_DURATION;  // ~3.33 seconds
+
+    // Schedule ACRN pattern for each frequency
+    const scheduleACRN = () => {
+      const now = audioContext.currentTime;
+
+      frequencies.forEach(freqObj => {
+        const stimFreqs = generateFreqs(freqObj.freq);
+
+        // Schedule 3 ON cycles
+        for (let cycle = 0; cycle < ON_CYCLES; cycle++) {
+          const shuffledFreqs = shuffle([...stimFreqs]);
+
+          // Play each of the 4 tones in randomized order
+          shuffledFreqs.forEach((freq, index) => {
+            const toneStartTime = now + (cycle * CYCLE_DURATION / 1000) + (index * TONE_DURATION);
+            playTone(freq, toneStartTime, TONE_DURATION, volume);
+          });
+        }
+        // OFF cycles (2 cycles) are silent - no tones scheduled
+      });
+
+      // Schedule next pattern
+      const timeoutId = setTimeout(scheduleACRN, PATTERN_DURATION);
+      acrnTimeouts.push(timeoutId);
+    };
+
+    // Start the pattern
+    scheduleACRN();
   }
 
   function updatePlayState(isPlaying, playState) {
+    if (!audioContext) return;
+
     if (isPlaying) {
-      document.getElementById('silent').play();
+      // Resume audio context if suspended
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+
       switch (playState) {
         case constants.PLAYER_STATES.PLAY_ACRN:
-          Tone.Master.volume.rampTo(volume, 0.1);
           playAcrn();
           break;
         case constants.PLAYER_STATES.PLAY_TONE:
-          if (frequencies.length === 1) {
-            osc.frequency.value = frequencies[0].freq;
+          // Create and start a continuous tone oscillator
+          if (osc) {
+            osc.stop();
+            osc.disconnect();
           }
+
+          const gainNode = audioContext.createGain();
+          const linearGain = Math.pow(10, volume / 20);
+          gainNode.gain.value = linearGain;
+          gainNode.connect(audioContext.destination);
+
+          osc = audioContext.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.value = frequencies[0].freq;
+          osc.connect(gainNode);
           osc.start();
           break;
       }
     } else {
       switch (playState) {
         case constants.PLAYER_STATES.PLAY_ACRN:
-          // Stop transport first
-          Tone.Transport.stop();
-          // Stop and dispose all sequences
-          frequencies = frequencies.map(freqObj => {
-            if (freqObj.sequence) {
-              freqObj.sequence.stop();
-              freqObj.sequence.cancel();
-              freqObj.sequence.dispose();
+          // Clear all scheduled ACRN timeouts
+          acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+          acrnTimeouts = [];
+
+          // Stop all active oscillators immediately
+          acrnOscillators.forEach(oscillator => {
+            try {
+              oscillator.stop();
+              oscillator.disconnect();
+            } catch (e) {
+              // Oscillator may have already stopped
             }
-            return {...freqObj, sequence: null};
           });
-          // Cancel all scheduled events on Transport
-          Tone.Transport.cancel(0);
+          acrnOscillators = [];
           break;
         case constants.PLAYER_STATES.PLAY_TONE:
-          // Dispose and recreate oscillator to prevent memory buildup
+          // Stop the continuous tone oscillator
           if (osc) {
             osc.stop();
-            osc.dispose();
+            osc.disconnect();
+            osc = null;
           }
-          osc = new Tone.Oscillator({
-            "frequency": frequencies.length === 1 ? frequencies[0].freq : constants.DEFAULT_FREQ
-          }).toMaster();
           break;
       }
     }
   }
 
   function stopPlayback(playState) {
-    Tone.Master.volume.rampTo(-Infinity, 0.05);
-    Tone.Transport.stop();
+    if (!audioContext) return;
 
     if (playState === constants.PLAYER_STATES.PLAY_ACRN) {
-      // Stop and dispose all sequences
-      frequencies = frequencies.map(freqObj => {
-        if (freqObj.sequence) {
-          freqObj.sequence.stop();
-          freqObj.sequence.cancel();
-          freqObj.sequence.dispose();
+      // Clear all scheduled ACRN timeouts
+      acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+      acrnTimeouts = [];
+
+      // Stop all active oscillators immediately
+      acrnOscillators.forEach(oscillator => {
+        try {
+          oscillator.stop();
+          oscillator.disconnect();
+        } catch (e) {
+          // Oscillator may have already stopped
         }
-        return {...freqObj, sequence: null};
       });
+      acrnOscillators = [];
     } else if (playState === constants.PLAYER_STATES.PLAY_TONE) {
+      // Stop the continuous tone oscillator
       if (osc) {
         osc.stop();
-        osc.dispose();
+        osc.disconnect();
+        osc = null;
       }
-      // Recreate oscillator to prevent memory accumulation
-      osc = new Tone.Oscillator({
-        "frequency": frequencies.length === 1 ? frequencies[0].freq : constants.DEFAULT_FREQ
-      }).toMaster();
     }
-
-    // Cancel all scheduled events after stopping
-    Tone.Transport.cancel(0);
   }
 
   function startPlayback(playState) {
-    // Cancel any remaining events before starting
-    Tone.Transport.cancel(0);
-    Tone.Transport.start();
-    Tone.Master.volume.rampTo(volume, 0.05);
+    if (!audioContext) return;
+
+    // Resume audio context if suspended
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
 
     if (playState === constants.PLAYER_STATES.PLAY_ACRN) {
       playAcrn();
     } else if (playState === constants.PLAYER_STATES.PLAY_TONE) {
-      if (frequencies.length === 1) {
-        osc.frequency.value = frequencies[0].freq;
-      }
+      // Create and start a continuous tone oscillator
+      const gainNode = audioContext.createGain();
+      const linearGain = Math.pow(10, volume / 20);
+      gainNode.gain.value = linearGain;
+      gainNode.connect(audioContext.destination);
+
+      osc = audioContext.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = frequencies[0].freq;
+      osc.connect(gainNode);
       osc.start();
     }
   }
@@ -356,8 +415,11 @@
       return f;
     });
 
-    // Update oscillator if in tone mode and this is the first frequency
-    if (playState === constants.PLAYER_STATES.PLAY_TONE && id === frequencies[0].id) {
+    // Update oscillator if in tone mode, playing, and this is the first frequency
+    if (playState === constants.PLAYER_STATES.PLAY_TONE &&
+        isPlaying &&
+        osc &&
+        id === frequencies[0].id) {
       osc.frequency.value = value;
     }
 
@@ -387,9 +449,7 @@
 
     let newFreq = {
       id: nextFreqId,
-      freq: constants.DEFAULT_FREQ,
-      synth: createSynth(),
-      sequence: null
+      freq: constants.DEFAULT_FREQ
     };
 
     frequencies = [...frequencies, newFreq];
@@ -401,11 +461,6 @@
     if (isPlaying) return; // Don't allow removing while playing
     if (frequencies.length <= 1) return; // Keep at least one frequency
 
-    let freqToRemove = frequencies.find(f => f.id === id);
-    if (freqToRemove && freqToRemove.synth) {
-      freqToRemove.synth.dispose();
-    }
-
     frequencies = frequencies.filter(f => f.id !== id);
     saveFrequenciesToLocalStorage(frequencies);
   }
@@ -416,9 +471,27 @@
   }
 
   function handleVolumeChangeVal(vol) {
-    Tone.Master.volume.rampTo(vol, 0.05);
     volume = vol;
     localStorage.setItem(constants.VOLUME_KEY, vol);
+
+    // If currently playing in tone mode, need to restart to apply new volume
+    // (Web Audio API doesn't allow changing gain on already-created nodes in our setup)
+    if (isPlaying && playState === constants.PLAYER_STATES.PLAY_TONE && osc) {
+      // Recreate oscillator with new volume
+      osc.stop();
+      osc.disconnect();
+
+      const gainNode = audioContext.createGain();
+      const linearGain = Math.pow(10, vol / 20);
+      gainNode.gain.value = linearGain;
+      gainNode.connect(audioContext.destination);
+
+      osc = audioContext.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = frequencies[0].freq;
+      osc.connect(gainNode);
+      osc.start();
+    }
   }
 
   function handleTextVolumeChange(e) {
@@ -454,6 +527,10 @@
         e.target.textContent = interval;
       }
     }
+  }
+
+  function handleFormulaToggle() {
+    localStorage.setItem(constants.USE_OLD_FORMULA_KEY, useOldFormula);
   }
 
   function handleRadioChange(newPlayState) {
@@ -510,12 +587,16 @@
   }
 
   function handleClickPlay() {
+    if (!audioContext) return;
+
     if (!isPlaying) {
       // Set playing state first
       isPlaying = true;
 
-      Tone.Transport.start();
-      Tone.Master.volume.rampTo(volume, 0.05);
+      // Resume audio context if suspended
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
 
       // Start progress tracking
       startProgressTracking();
@@ -577,7 +658,24 @@
       </button>
     </div>
 
-    <br/><br/>
+    <br/>
+
+    <!-- Formula Toggle (for Sequence mode) -->
+    {#if playState === constants.PLAYER_STATES.PLAY_ACRN}
+      <div class="formula-toggle">
+        <label>
+          <input
+            type="checkbox"
+            bind:checked={useOldFormula}
+            on:change={handleFormulaToggle}
+            disabled={isPlaying}
+          />
+          Use legacy frequency formula
+        </label>
+      </div>
+    {/if}
+
+    <br/>
 
     <!-- Warning for Tone mode with multiple frequencies -->
     {#if playState === constants.PLAYER_STATES.PLAY_TONE && frequencies.length > 1}
@@ -674,10 +772,12 @@
         </div>
 
         {#if playState === constants.PLAYER_STATES.PLAY_ACRN}
-          <div>
-            <br/>
-            <i>frequencies used in sequence: {generateFreqs(freqObj.freq).join(', ')}</i>
-          </div>
+          {#key useOldFormula}
+            <div>
+              <br/>
+              <i>frequencies used in sequence: {generateFreqs(freqObj.freq).join(', ')}</i>
+            </div>
+          {/key}
         {/if}
       </div>
     {/each}
@@ -828,6 +928,34 @@
 
   .mode-toggle button:hover:not(.active) {
     background: var(--container-bg);
+  }
+
+  .formula-toggle {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+  }
+
+  .formula-toggle label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    opacity: 0.8;
+  }
+
+  .formula-toggle label:hover {
+    opacity: 1;
+  }
+
+  .formula-toggle input[type="checkbox"] {
+    cursor: pointer;
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .formula-toggle input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
   }
 
   .alert-warning {

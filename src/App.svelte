@@ -355,8 +355,8 @@
       return f;
     });
 
-    // Update oscillator if in tone mode and only one frequency
-    if (frequencies.length === 1) {
+    // Update oscillator if in tone mode and this is the first frequency
+    if (playState === constants.PLAYER_STATES.PLAY_TONE && id === frequencies[0].id) {
       osc.frequency.value = value;
     }
 
@@ -364,9 +364,20 @@
   }
 
   function handleTextFreqChange(id, e) {
-    let value = parseInt(e.target.value, 10);
+    let textValue = e.target.textContent || e.target.value;
+    let value = parseInt(textValue, 10);
+
+    // Only update if valid
     if (!isNaN(value) && value >= constants.MIN_FREQ && value <= constants.MAX_FREQ) {
       handleFreqChange(id, value);
+    } else {
+      // Revert to previous valid value on blur if invalid
+      if (e.type === 'blur') {
+        let freqObj = frequencies.find(f => f.id === id);
+        if (freqObj) {
+          e.target.textContent = freqObj.freq;
+        }
+      }
     }
   }
 
@@ -600,7 +611,19 @@
     {#each frequencies as freqObj, index (freqObj.id)}
       <div class="frequency-card">
         <div class="freq-header">
-          <h4>Frequency {index + 1}</h4>
+          {#key freqObj.freq}
+            <div
+              class="freq-title"
+              contenteditable={!isPlaying}
+              on:blur={(e) => handleTextFreqChange(freqObj.id, e)}
+              on:keydown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.target.blur();
+                }
+              }}
+            >{freqObj.freq}</div>
+          {/key}
           {#if frequencies.length > 1 && !isPlaying}
             <button
               class="btn btn-danger btn-sm"
@@ -612,7 +635,6 @@
         </div>
 
         <div class="slider">
-          <label for="freq-slider-{freqObj.id}">Frequency</label>
           <input
             id="freq-slider-{freqObj.id}"
             type="range"
@@ -620,16 +642,6 @@
             max={constants.MAX_FREQ}
             value={freqObj.freq}
             on:input={(e) => handleFreqChange(freqObj.id, +e.target.value)}
-            disabled={isPlaying}
-          />
-        </div>
-
-        <div>
-          <input
-            class="freq-value"
-            type="number"
-            value={freqObj.freq}
-            on:input={(e) => handleTextFreqChange(freqObj.id, e)}
             disabled={isPlaying}
           />
         </div>
@@ -813,7 +825,7 @@
 
   .frequency-card {
     margin-bottom: 1.5rem;
-    padding: 1.5rem;
+    padding: 0.5rem;
     border: 1px solid var(--freq-box-border);
     border-radius: 8px;
     background: var(--freq-box-bg);
@@ -830,14 +842,18 @@
     margin: 0;
   }
 
-  .slider {
-    margin: 1rem 0;
-  }
-
-  .slider label {
-    display: block;
-    margin-bottom: 0.5rem;
+  .freq-title {
+    margin: 0;
+    font-size: 1.5rem;
     font-weight: 500;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .freq-title::after {
+    content: " Hz";
+  }
+  .freq-title[contenteditable="true"] {
+    cursor: text;
   }
 
   input[type="range"] {

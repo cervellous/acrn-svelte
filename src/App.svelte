@@ -428,18 +428,30 @@
   }
 
   function handleCourseChange(e) {
-    let value = parseInt(e.target.value, 10);
-    if (!isNaN(value)) {
+    let textValue = e.target.textContent || e.target.value;
+    let value = parseInt(textValue, 10);
+    if (!isNaN(value) && value > 0) {
       course = value;
       localStorage.setItem(constants.COURSE_KEY, value);
+    } else {
+      // Revert to previous valid value on blur if invalid
+      if (e.type === 'blur') {
+        e.target.textContent = course;
+      }
     }
   }
 
   function handleIntervalChange(e) {
-    let value = parseInt(e.target.value, 10);
-    if (!isNaN(value)) {
+    let textValue = e.target.textContent || e.target.value;
+    let value = parseInt(textValue, 10);
+    if (!isNaN(value) && value > 0) {
       interval = value;
       localStorage.setItem(constants.INTERVAL_KEY, value);
+    } else {
+      // Revert to previous valid value on blur if invalid
+      if (e.type === 'blur') {
+        e.target.textContent = interval;
+      }
     }
   }
 
@@ -558,7 +570,7 @@
       </a> tinnitus treatment protocol using
       <a href="https://www.tinnitustalk.com/attachments/tass-et-al_rnn-2012_counteracting-tinnitus-by-acoustic-cr-neuromodulation-pdf.183/">
         this paper
-      </a> as a guide. Changes allow for the ACRN tone to cycle on and off (course/interval), play ACRN tones for multiple frequencies simultaneously, and fixes memory leaks from the original implementation.
+      </a> as a guide. Changes allow for the ACRN tone to cycle on and off, play ACRN tones for multiple frequencies simultaneously, and fixes memory leaks from the original implementation.
     </p>
 
     <div class="instructions">
@@ -604,6 +616,39 @@
     {#if playState === constants.PLAYER_STATES.PLAY_TONE && frequencies.length > 1}
       <div class="alert alert-warning">
         Note: Tone mode only supports one frequency. Using the first frequency: {frequencies[0].freq} Hz
+      </div>
+    {:else}
+      <!-- Course/Interval Control -->
+      <div class="timing-sentence">
+        Play
+        {#key course}
+          <span
+            class="timing-value"
+            contenteditable="true"
+            on:blur={(e) => handleCourseChange(e)}
+            on:keydown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.target.blur();
+              }
+            }}
+          >{course}</span>
+        {/key}
+        minutes, rest
+        {#key interval}
+          <span
+            class="timing-value"
+            contenteditable="true"
+            on:blur={(e) => handleIntervalChange(e)}
+            on:keydown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.target.blur();
+              }
+            }}
+          >{interval}</span>
+        {/key}
+        minutes
       </div>
     {/if}
 
@@ -701,22 +746,6 @@
     </div>
     <div>
       <input class="volume-value" type="number" value={volume} on:input={handleTextVolumeChange} />
-    </div>
-
-    <!-- Course Control -->
-    <div>
-      <label for="course-input">Course (minutes)</label>
-    </div>
-    <div>
-      <input id="course-input" class="course-value" type="number" value={course} on:input={handleCourseChange} />
-    </div>
-
-    <!-- Interval Control -->
-    <div>
-      <label for="interval-input">Interval (minutes)</label>
-    </div>
-    <div>
-      <input id="interval-input" class="interval-value" type="number" value={interval} on:input={handleIntervalChange} />
     </div>
   </div>
   <footer>&nbsp;</footer>
@@ -867,9 +896,7 @@
   }
 
   .freq-value,
-  .volume-value,
-  .course-value,
-  .interval-value {
+  .volume-value {
     width: 5em;
     background-color: var(--input-bg);
     color: var(--input-text);
@@ -877,6 +904,37 @@
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 1rem;
+  }
+
+  .timing-sentence {
+    margin: 1.5rem 0;
+    font-size: 1.1rem;
+    line-height: 2;
+  }
+
+  .timing-value {
+    display: inline-block;
+    min-width: 2em;
+    padding: 0.25rem 0.5rem;
+    margin: 0 0.25rem;
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    border: 2px solid transparent;
+    border-radius: 4px;
+    outline: none;
+    cursor: text;
+    transition: all 0.2s;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .timing-value:hover {
+    border-color: var(--border-color);
+  }
+
+  .timing-value:focus {
+    border-color: #337ab7;
+    background: var(--container-bg);
   }
 
   .add-frequency-btn-wrapper {

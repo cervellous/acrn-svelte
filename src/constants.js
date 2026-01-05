@@ -13,6 +13,7 @@ export const PLAYER_STATE_KEY = "playerState";
 export const COURSE_KEY = "course";
 export const INTERVAL_KEY = "interval";
 export const USE_OLD_FORMULA_KEY = "useOldFormula";
+export const USE_OLD_ENVELOPE_KEY = "useOldEnvelope";
 
 // initial config values
 export const DEFAULT_FREQ = 13640;

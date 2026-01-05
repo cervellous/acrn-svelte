@@ -53,6 +53,7 @@
   let interval = getLocalStorageInt(constants.INTERVAL_KEY, constants.INTERVAL_MINS);
   let playState = getLocalStorageInt(constants.PLAYER_STATE_KEY, constants.PLAYER_STATES.PLAY_TONE);
   let useOldFormula = getLocalStorageBool(constants.USE_OLD_FORMULA_KEY, false);
+  let useOldEnvelope = getLocalStorageBool(constants.USE_OLD_ENVELOPE_KEY, false);
   let isPlaying = false;
   let nextFreqId = frequencies.length > 0 ? Math.max(...frequencies.map(f => f.id)) + 1 : 1;
 
@@ -174,7 +175,37 @@
 
     // Convert dB to linear gain (approximate)
     const linearGain = Math.pow(10, gainValue / 20);
-    gainNode.gain.value = linearGain;
+
+    // Envelope parameters
+    let attackTime, sustainLevel, releaseTime, actualDuration;
+    if (useOldEnvelope) {
+      // Old envelope: 100ms attack, sustain at 70%, 80ms release
+      attackTime = 0.1;
+      sustainLevel = 0.7; // Tone.js sustain level
+      releaseTime = 0.08;
+      // Extend duration to accommodate full envelope
+      actualDuration = Math.max(duration, attackTime + releaseTime + 0.01);
+    } else {
+      // Minimal envelope to prevent clicks: 5ms attack/release
+      attackTime = 0.005;
+      sustainLevel = 1.0;
+      releaseTime = 0.005;
+      actualDuration = duration;
+    }
+
+    // Set up envelope with ADSR
+    gainNode.gain.setValueAtTime(0, startTime);
+    // Attack: ramp from 0 to full gain
+    gainNode.gain.linearRampToValueAtTime(linearGain, startTime + attackTime);
+    // Decay/Sustain: drop to sustain level (immediate for new, gradual for old)
+    if (useOldEnvelope && sustainLevel < 1.0) {
+      gainNode.gain.linearRampToValueAtTime(linearGain * sustainLevel, startTime + attackTime + 0.01);
+      gainNode.gain.setValueAtTime(linearGain * sustainLevel, startTime + actualDuration - releaseTime);
+    } else {
+      gainNode.gain.setValueAtTime(linearGain, startTime + actualDuration - releaseTime);
+    }
+    // Release: ramp to 0
+    gainNode.gain.linearRampToValueAtTime(0, startTime + actualDuration);
 
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
@@ -191,7 +222,7 @@
     };
 
     oscillator.start(startTime);
-    oscillator.stop(startTime + duration);
+    oscillator.stop(startTime + actualDuration);
   }
 
   // Main ACRN playback function using Web Audio API
@@ -533,6 +564,10 @@
     localStorage.setItem(constants.USE_OLD_FORMULA_KEY, useOldFormula);
   }
 
+  function handleEnvelopeToggle() {
+    localStorage.setItem(constants.USE_OLD_ENVELOPE_KEY, useOldEnvelope);
+  }
+
   function handleRadioChange(newPlayState) {
     if (isPlaying) {
       // stop the sound
@@ -671,6 +706,21 @@
             disabled={isPlaying}
           />
           Use legacy frequency formula
+        </label>
+      </div>
+    {/if}
+
+    <!-- Envelope Toggle (for Sequence mode) -->
+    {#if playState === constants.PLAYER_STATES.PLAY_ACRN}
+      <div class="formula-toggle">
+        <label>
+          <input
+            type="checkbox"
+            bind:checked={useOldEnvelope}
+            on:change={handleEnvelopeToggle}
+            disabled={isPlaying}
+          />
+          Use legacy envelope (100ms attack, 80ms release)
         </label>
       </div>
     {/if}

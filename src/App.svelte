@@ -548,20 +548,8 @@
 
 <!-- ===== MARKUP ===== -->
 <div class="App">
-  <nav class="navbar">
-    <div class="container">
-      <ul class="nav-links">
-        <li><a href="https://github.com/cervellous/acrn-svelte">Source</a></li>
-        <li><a href="http://github.com/generalfuzz/acrn-react">Original</a></li>
-        <li><a href="http://www.generalfuzz.net">Music</a></li>
-      </ul>
-    </div>
-  </nav>
-
   <div class="container">
-    <div class="jumbotron">
-      <h1>ACRN Protocol</h1>
-    </div>
+    <h1>ACRN Protocol</h1>
 
     <p>
       This is a fork of <a href="http://github.com/generalfuzz/acrn-react">acrn-react</a>, an implementation of the
@@ -748,7 +736,17 @@
       <input class="volume-value" type="number" value={volume} on:input={handleTextVolumeChange} />
     </div>
   </div>
-  <footer>&nbsp;</footer>
+  <footer>
+    <nav class="navbar">
+      <div class="container">
+        <ul class="nav-links">
+          <li><a href="https://github.com/cervellous/acrn-svelte">Source</a></li>
+          <li><a href="http://github.com/generalfuzz/acrn-react">Original</a></li>
+          <li><a href="http://www.generalfuzz.net">Music</a></li>
+        </ul>
+      </div>
+    </nav>
+  </footer>
 </div>
 
 <style>
@@ -785,13 +783,6 @@
     max-width: 1140px;
     margin: 0 auto;
     padding: 0 15px;
-  }
-
-  .jumbotron {
-    background-color: var(--jumbotron-bg);
-    padding: 1rem 1.5rem;
-    border-radius: 6px;
-    margin: 2rem 0;
   }
 
   h1 {

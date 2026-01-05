@@ -550,36 +550,6 @@
 <div class="App">
   <div class="container">
     <h1>ACRN Protocol</h1>
-
-    <p>
-      This is a fork of <a href="http://github.com/generalfuzz/acrn-react">acrn-react</a>, an implementation of the
-      <a href="https://www.thetinnitusclinic.co.uk/tinnitus-treatment/acoustic-neuromodulation/">
-        Acoustic Coordinated Reset Neuromodulation
-      </a> tinnitus treatment protocol using
-      <a href="https://www.tinnitustalk.com/attachments/tass-et-al_rnn-2012_counteracting-tinnitus-by-acoustic-cr-neuromodulation-pdf.183/">
-        this paper
-      </a> as a guide. Changes allow for the ACRN tone to cycle on and off, play ACRN tones for multiple frequencies simultaneously, and fixes memory leaks from the original implementation.
-    </p>
-
-    <div class="instructions">
-      <ul>
-        <li>First lower the volume on your device, so it is not too loud to start.</li>
-        <li>Start the tone by pressing the "Play Tone" button.</li>
-        <li>Adjust the frequency slider until it matches your tinnitus tone. You can also type in the frequency if you know it already.</li>
-        <li>Adjust the volume until it is a little bit louder than your tinnitus tone.</li>
-        <li>Switch from "Tone" to "Sequence" mode</li>
-        <li>For multiple simultaneous tones, use the "Add Frequency" button in Sequence mode</li>
-      </ul>
-    </div>
-
-    <p>
-      Inspired by
-      <a href="http://www.tinnitustalk.com/threads/acoustic-cr%C2%AE-neuromodulation-do-it-yourself-guide.1469/">this</a>
-      thread on <a href="http://www.tinnitustalk.com">tinnitustalk.com</a> and
-      <a href="http://www.reddit.com/r/tinnitus/comments/15x99f/recent_tinnitus_study_and_my_attempt_at_utilizing/">this</a>
-      reddit thread.
-    </p>
-
     <br/>
 
     <!-- Mode Toggle -->
@@ -605,39 +575,54 @@
       <div class="alert alert-warning">
         Note: Tone mode only supports one frequency. Using the first frequency: {frequencies[0].freq} Hz
       </div>
-    {:else}
-      <!-- Course/Interval Control -->
-      <div class="timing-sentence">
-        Play
-        {#key course}
-          <span
-            class="timing-value"
-            contenteditable="true"
-            on:blur={(e) => handleCourseChange(e)}
-            on:keydown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                e.target.blur();
-              }
-            }}
-          >{course}</span>
-        {/key}
-        minutes, rest
-        {#key interval}
-          <span
-            class="timing-value"
-            contenteditable="true"
-            on:blur={(e) => handleIntervalChange(e)}
-            on:keydown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                e.target.blur();
-              }
-            }}
-          >{interval}</span>
-        {/key}
-        minutes
-      </div>
+
+      <!-- Progress Bar -->
+    {/if}
+    {#if playState === constants.PLAYER_STATES.PLAY_ACRN}
+      {#if isPlaying}
+        <div class="progress-container">
+          <div class="progress-label">
+            <span class="phase-name">{currentPhase === 'course' ? 'Playing' : 'Resting'}</span>
+            <span class="progress-time">{elapsedTime} / {totalTime}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: {progress}%"></div>
+          </div>
+        </div>
+      {:else}
+        <!-- Course/Interval Control -->
+        <div class="timing-sentence">
+          Play
+          {#key course}
+            <span
+              class="timing-value"
+              contenteditable="true"
+              on:blur={(e) => handleCourseChange(e)}
+              on:keydown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.target.blur();
+                }
+              }}
+            >{course}</span>
+          {/key}
+          minutes, rest
+          {#key interval}
+            <span
+              class="timing-value"
+              contenteditable="true"
+              on:blur={(e) => handleIntervalChange(e)}
+              on:keydown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.target.blur();
+                }
+              }}
+            >{interval}</span>
+          {/key}
+          minutes
+        </div>
+      {/if}
     {/if}
 
     <!-- Frequency Controls -->
@@ -707,19 +692,6 @@
       </button>
     </p>
 
-    <!-- Progress Bar -->
-    {#if isPlaying}
-      <div class="progress-container">
-        <div class="progress-label">
-          <span class="phase-name">{currentPhase === 'course' ? 'Course' : 'Interval'}</span>
-          <span class="progress-time">{elapsedTime} / {totalTime}</span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" style="width: {progress}%"></div>
-        </div>
-      </div>
-    {/if}
-
     <!-- Volume Control -->
     <div class="slider volume">
       <label for="volume-slider">Volume</label>
@@ -735,6 +707,36 @@
     <div>
       <input class="volume-value" type="number" value={volume} on:input={handleTextVolumeChange} />
     </div>
+
+    <p>
+      This is a fork of <a href="http://github.com/generalfuzz/acrn-react">acrn-react</a>, an implementation of the
+      <a href="https://www.thetinnitusclinic.co.uk/tinnitus-treatment/acoustic-neuromodulation/">
+        Acoustic Coordinated Reset Neuromodulation
+      </a> tinnitus treatment protocol using
+      <a href="https://www.tinnitustalk.com/attachments/tass-et-al_rnn-2012_counteracting-tinnitus-by-acoustic-cr-neuromodulation-pdf.183/">
+        this paper
+      </a> as a guide. Changes allow for the ACRN tone to cycle on and off, play ACRN tones for multiple frequencies simultaneously, and fixes memory leaks from the original implementation.
+    </p>
+
+    <div class="instructions">
+      <ul>
+        <li>First lower the volume on your device, so it is not too loud to start.</li>
+        <li>Start the tone by pressing the "Play Tone" button.</li>
+        <li>Adjust the frequency slider until it matches your tinnitus tone. You can also type in the frequency if you know it already.</li>
+        <li>Adjust the volume until it is a little bit louder than your tinnitus tone.</li>
+        <li>Switch from "Tone" to "Sequence" mode</li>
+        <li>For multiple simultaneous tones, use the "Add Frequency" button in Sequence mode</li>
+      </ul>
+    </div>
+
+    <p>
+      Inspired by
+      <a href="http://www.tinnitustalk.com/threads/acoustic-cr%C2%AE-neuromodulation-do-it-yourself-guide.1469/">this</a>
+      thread on <a href="http://www.tinnitustalk.com">tinnitustalk.com</a> and
+      <a href="http://www.reddit.com/r/tinnitus/comments/15x99f/recent_tinnitus_study_and_my_attempt_at_utilizing/">this</a>
+      reddit thread.
+    </p>
+
   </div>
   <footer>
     <nav class="navbar">
@@ -846,9 +848,8 @@
   .frequency-card {
     margin-bottom: 1.5rem;
     padding: 0.5rem;
-    border: 1px solid var(--freq-box-border);
+    border: 1px solid var(--freq-box-bg);
     border-radius: 8px;
-    background: var(--freq-box-bg);
   }
 
   .freq-header {
@@ -866,6 +867,8 @@
     margin: 0;
     font-size: 1.5rem;
     font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
     outline: none;
     transition: all 0.2s;
   }
@@ -874,6 +877,21 @@
   }
   .freq-title[contenteditable="true"] {
     cursor: text;
+    background: var(--input-bg);
+    border: 2px solid transparent;
+  }
+
+  .freq-title[contenteditable="true"]:hover {
+    border-color: var(--border-color);
+  }
+
+  .freq-title[contenteditable="true"]:focus {
+    border-color: #337ab7;
+    background: var(--container-bg);
+  }
+
+  .freq-title[contenteditable="false"] {
+    cursor: default;
   }
 
   input[type="range"] {

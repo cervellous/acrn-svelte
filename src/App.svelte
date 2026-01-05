@@ -214,6 +214,7 @@
 
   function updatePlayState(isPlaying, playState) {
     if (isPlaying) {
+      document.getElementById('silent').play();
       switch (playState) {
         case constants.PLAYER_STATES.PLAY_ACRN:
           Tone.Master.volume.rampTo(volume, 0.1);
@@ -227,7 +228,6 @@
           break;
       }
     } else {
-      document.getElementById('silent').play();
       switch (playState) {
         case constants.PLAYER_STATES.PLAY_ACRN:
           // Stop transport first

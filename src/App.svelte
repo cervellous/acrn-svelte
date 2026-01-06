@@ -54,6 +54,7 @@
   let playState = getLocalStorageInt(constants.PLAYER_STATE_KEY, constants.PLAYER_STATES.PLAY_TONE);
   let useOldFormula = getLocalStorageBool(constants.USE_OLD_FORMULA_KEY, false);
   let useOldEnvelope = getLocalStorageBool(constants.USE_OLD_ENVELOPE_KEY, false);
+  let selectedFreqId = getLocalStorageInt(constants.SELECTED_FREQ_ID_KEY, frequencies.length > 0 ? frequencies[0].id : 0);
   let isPlaying = false;
   let nextFreqId = frequencies.length > 0 ? Math.max(...frequencies.map(f => f.id)) + 1 : 1;
 
@@ -82,6 +83,8 @@
   $: playButtonText = playState === constants.PLAYER_STATES.PLAY_ACRN
     ? (isPlaying ? constants.STOP_SEQ_TEXT : constants.PLAY_SEQ_TEXT)
     : (isPlaying ? constants.STOP_TONE_TEXT : constants.PLAY_TONE_TEXT);
+
+  $: selectedFreq = frequencies.find(f => f.id === selectedFreqId) || frequencies[0];
 
   // ===== LIFECYCLE =====
   onMount(() => {
@@ -423,7 +426,7 @@
 
           toneOscNode = audioContext.createOscillator();
           toneOscNode.type = 'sine';
-          toneOscNode.frequency.value = frequencies[0].freq;
+          toneOscNode.frequency.value = selectedFreq.freq;
           toneOscNode.connect(toneGainNode);
           toneOscNode.start();
           break;
@@ -483,7 +486,7 @@
 
       toneOscNode = audioContext.createOscillator();
       toneOscNode.type = 'sine';
-      toneOscNode.frequency.value = frequencies[0].freq;
+      toneOscNode.frequency.value = selectedFreq.freq;
       toneOscNode.connect(toneGainNode);
       toneOscNode.start();
     }
@@ -542,11 +545,11 @@
       return f;
     });
 
-    // Update oscillator if in tone mode, playing, and this is the first frequency
+    // Update oscillator if in tone mode, playing, and this is the selected frequency
     if (playState === constants.PLAYER_STATES.PLAY_TONE &&
         isPlaying &&
         toneOscNode &&
-        id === frequencies[0].id) {
+        id === selectedFreqId) {
       toneOscNode.frequency.value = value;
     }
 
@@ -665,6 +668,18 @@
 
   function handleEnvelopeToggle() {
     localStorage.setItem(constants.USE_OLD_ENVELOPE_KEY, useOldEnvelope);
+  }
+
+  function handleFreqCardClick(id) {
+    if (playState === constants.PLAYER_STATES.PLAY_TONE) {
+      selectedFreqId = id;
+      localStorage.setItem(constants.SELECTED_FREQ_ID_KEY, id);
+
+      // If playing, update the oscillator frequency
+      if (isPlaying && toneOscNode) {
+        toneOscNode.frequency.value = frequencies.find(f => f.id === id).freq;
+      }
+    }
   }
 
   function handleRadioChange(newPlayState) {
@@ -795,16 +810,9 @@
       </button>
     </div>
 
-    <br/>
+    <div><br/></div>
 
-    <!-- Warning for Tone mode with multiple frequencies -->
-    {#if playState === constants.PLAYER_STATES.PLAY_TONE && frequencies.length > 1}
-      <div class="alert alert-warning">
-        Note: Tone mode only supports one frequency. Using the first frequency: {frequencies[0].freq} Hz
-      </div>
-
-      <!-- Progress Bar -->
-    {/if}
+    <!-- Progress Bar -->
     {#if playState === constants.PLAYER_STATES.PLAY_ACRN}
       {#if isPlaying}
         <div class="progress-container">
@@ -854,12 +862,17 @@
 
     <!-- Frequency Controls -->
     {#each frequencies as freqObj, index (freqObj.id)}
-      <div class="frequency-card">
+      <div
+        class="frequency-card"
+        class:selected={playState === constants.PLAYER_STATES.PLAY_TONE && freqObj.id === selectedFreqId}
+        class:clickable={playState === constants.PLAYER_STATES.PLAY_TONE}
+        on:click={() => handleFreqCardClick(freqObj.id)}
+      >
         <div class="freq-header">
           {#key freqObj.freq}
             <div
               class="freq-title"
-              contenteditable={!isPlaying}
+              contenteditable={playState === constants.PLAYER_STATES.PLAY_ACRN ? !isPlaying : (freqObj.id === selectedFreqId ? true : !isPlaying)}
               on:blur={(e) => handleTextFreqChange(freqObj.id, e)}
               on:keydown={(e) => {
                 if (e.key === 'Enter') {
@@ -872,7 +885,10 @@
           {#if frequencies.length > 1 && !isPlaying}
             <button
               class="btn btn-danger btn-sm"
-              on:click={() => removeFrequency(freqObj.id)}
+              on:click={(e) => {
+                e.stopPropagation();
+                removeFrequency(freqObj.id);
+              }}
             >
               Remove
             </button>
@@ -887,7 +903,7 @@
             max={constants.MAX_FREQ}
             value={freqObj.freq}
             on:input={(e) => handleFreqChange(freqObj.id, +e.target.value)}
-            disabled={isPlaying}
+            disabled={playState === constants.PLAYER_STATES.PLAY_ACRN ? isPlaying : (freqObj.id === selectedFreqId ? false : isPlaying)}
           />
         </div>
 
@@ -1130,6 +1146,21 @@
     padding: 0.5rem;
     border: 1px solid var(--freq-box-bg);
     border-radius: 8px;
+  }
+
+  .frequency-card.clickable {
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .frequency-card.clickable:hover {
+    background: var(--container-bg);
+  }
+
+  .frequency-card.selected {
+    border-color: #337ab7;
+    border-width: 2px;
+    box-shadow: 0 0 8px rgba(51, 122, 183, 0.3);
   }
 
   .freq-header {

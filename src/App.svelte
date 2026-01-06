@@ -895,18 +895,27 @@
           />
         {/if}
         <div class="freq-header">
+          <label for="freq-input-{freqObj.id}" class="visually-hidden">Frequency of tone {index + 1} in Hz</label>
           {#key freqObj.freq}
-            <div
-              class="freq-title"
-              contenteditable={playState === constants.PLAYER_STATES.PLAY_ACRN ? !isPlaying : (freqObj.id === selectedFreqId ? true : !isPlaying)}
-              on:blur={(e) => handleTextFreqChange(freqObj.id, e)}
-              on:keydown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  e.target.blur();
-                }
-              }}
-            >{freqObj.freq}</div>
+            <div class="freq-title-wrapper">
+              <input
+                id="freq-input-{freqObj.id}"
+                type="number"
+                class="freq-title"
+                value={freqObj.freq}
+                min={constants.MIN_FREQ}
+                max={constants.MAX_FREQ}
+                disabled={playState === constants.PLAYER_STATES.PLAY_ACRN ? isPlaying : (freqObj.id === selectedFreqId ? false : isPlaying)}
+                on:input={(e) => handleTextFreqChange(freqObj.id, e)}
+                on:keydown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.target.blur();
+                  }
+                }}
+              />
+              <span class="freq-unit" aria-hidden="true">Hz</span>
+            </div>
           {/key}
           {#if frequencies.length > 1 && !isPlaying}
             <button
@@ -1189,35 +1198,66 @@
     margin-bottom: 1rem;
   }
 
+  .freq-title-wrapper {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+  }
+
   .freq-title {
     margin: 0;
     font-size: 1.5rem;
-    font-weight: 500;
+    font-weight: 600;
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     outline: none;
     transition: all 0.2s;
-  }
-  .freq-title::after {
-    content: " Hz";
-  }
-  .freq-title[contenteditable="true"] {
-    cursor: text;
-    background: var(--input-bg);
+    width: 4em;
+    text-align: left;
+    font-family: inherit;
+    background: transparent;
+    color: var(--text-color);
     border: 2px solid transparent;
+    -moz-appearance: textfield;
   }
 
-  .freq-title[contenteditable="true"]:hover {
+  .freq-title::-webkit-outer-spin-button,
+  .freq-title::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .freq-unit {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+
+  .freq-title:not(:disabled) {
+    cursor: text;
+    background: var(--input-bg);
+  }
+
+  .freq-title:not(:disabled):hover {
     border-color: var(--border-color);
   }
 
-  .freq-title[contenteditable="true"]:focus {
+  .freq-title:not(:disabled):focus {
     border-color: #337ab7;
     background: var(--container-bg);
   }
 
-  .freq-title[contenteditable="false"] {
+  .freq-title:disabled {
     cursor: default;
+    opacity: 1;
+    padding-right: 0;
+  }
+
+  @supports (field-sizing: content) {
+    .freq-title {
+      width: auto;
+      field-sizing: content;
+    }
   }
 
   input[type="range"] {
@@ -1278,7 +1318,7 @@
   }
   @supports (field-sizing: content) {
     .timing-value {
-      width: auto; /* or unset / initial / whatever you need */
+      width: auto;
       field-sizing: content;
     }
   }

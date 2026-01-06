@@ -835,34 +835,40 @@
         <!-- Course/Interval Control -->
         <div class="timing-sentence">
           Play
+          <label for="course-input" class="visually-hidden">Continuous ACRN playback duration in minutes</label>
           {#key course}
-            <span
+            <input
+              id="course-input"
+              type="number"
               class="timing-value"
-              role="textbox"
-              contenteditable="true"
-              on:blur={(e) => handleCourseChange(e)}
+              value={course}
+              min="1"
+              on:input={(e) => handleCourseChange(e)}
               on:keydown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   e.target.blur();
                 }
               }}
-            >{course}</span>
+            />
           {/key}
           minutes, rest
+          <label for="interval-input" class="visually-hidden">Rest interval in minutes</label>
           {#key interval}
-            <span
+            <input
+              id="interval-input"
+              type="number"
               class="timing-value"
-              role="textbox"
-              contenteditable="true"
-              on:blur={(e) => handleIntervalChange(e)}
+              value={interval}
+              min="1"
+              on:input={(e) => handleIntervalChange(e)}
               on:keydown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   e.target.blur();
                 }
               }}
-            >{interval}</span>
+            />
           {/key}
           minutes
         </div>
@@ -1234,6 +1240,18 @@
     font-size: 1rem;
   }
 
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   .timing-sentence {
     margin: 1.5rem 0;
     font-size: 1.1rem;
@@ -1242,7 +1260,7 @@
 
   .timing-value {
     display: inline-block;
-    min-width: 2em;
+    width: 3em;
     padding: 0.25rem 0.5rem;
     margin: 0 0.25rem;
     background-color: var(--input-bg);
@@ -1254,6 +1272,21 @@
     transition: all 0.2s;
     font-weight: 600;
     text-align: center;
+    font-size: 1.1rem;
+    font-family: inherit;
+    -moz-appearance: textfield;
+  }
+  @supports (field-sizing: content) {
+    .timing-value {
+      width: auto; /* or unset / initial / whatever you need */
+      field-sizing: content;
+    }
+  }
+
+  .timing-value::-webkit-outer-spin-button,
+  .timing-value::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 
   .timing-value:hover {

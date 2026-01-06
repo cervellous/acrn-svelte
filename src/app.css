@@ -75,12 +75,3 @@ input[type="number"] {
   border-radius: 4px;
   font-size: 1rem;
 }
-
-/* Dark mode specific overrides */
-@media (prefers-color-scheme: dark) {
-  .alert-warning {
-    background-color: #664d03 !important;
-    border-color: #997404 !important;
-    color: #ffecb5 !important;
-  }
-}

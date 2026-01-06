@@ -838,6 +838,7 @@
           {#key course}
             <span
               class="timing-value"
+              role="textbox"
               contenteditable="true"
               on:blur={(e) => handleCourseChange(e)}
               on:keydown={(e) => {
@@ -852,6 +853,7 @@
           {#key interval}
             <span
               class="timing-value"
+              role="textbox"
               contenteditable="true"
               on:blur={(e) => handleIntervalChange(e)}
               on:keydown={(e) => {
@@ -869,12 +871,23 @@
 
     <!-- Frequency Controls -->
     {#each frequencies as freqObj, index (freqObj.id)}
-      <div
+      <label
         class="frequency-card"
         class:selected={playState === constants.PLAYER_STATES.PLAY_TONE && freqObj.id === selectedFreqId}
         class:clickable={playState === constants.PLAYER_STATES.PLAY_TONE}
-        on:click={() => handleFreqCardClick(freqObj.id)}
+        for="freq-radio-{freqObj.id}"
       >
+        {#if playState === constants.PLAYER_STATES.PLAY_TONE}
+          <input
+            type="radio"
+            name="selected-frequency"
+            value={freqObj.id}
+            checked={freqObj.id === selectedFreqId}
+            on:change={() => handleFreqCardClick(freqObj.id)}
+            class="frequency-radio"
+            id="freq-radio-{freqObj.id}"
+          />
+        {/if}
         <div class="freq-header">
           {#key freqObj.freq}
             <div
@@ -922,11 +935,11 @@
             </div>
           {/key}
         {/if}
-      </div>
+      </label>
     {/each}
 
     <!-- Add Frequency Button -->
-    {#if playState === constants.PLAYER_STATES.PLAY_ACRN && !isPlaying}
+    {#if !isPlaying}
     <div class="add-frequency-btn-wrapper">
       <div>
         <button class="btn btn-primary" on:click={addFrequency}>
@@ -1131,21 +1144,12 @@
     opacity: 0.5;
   }
 
-  .alert-warning {
-    background-color: #fcf8e3;
-    border: 1px solid #faebcc;
-    color: #8a6d3b;
-    padding: 1rem;
-    border-radius: 4px;
-    margin: 1rem 0;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    .alert-warning {
-      background-color: #664d03;
-      border-color: #997404;
-      color: #ffecb5;
-    }
+  .frequency-radio {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
   }
 
   .frequency-card {
@@ -1153,6 +1157,8 @@
     padding: 0.5rem;
     border: 1px solid var(--freq-box-bg);
     border-radius: 8px;
+    display: block;
+    position: relative;
   }
 
   .frequency-card.clickable {
@@ -1175,10 +1181,6 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1rem;
-  }
-
-  h4 {
-    margin: 0;
   }
 
   .freq-title {
@@ -1222,7 +1224,6 @@
     max-width: 600px;
   }
 
-  .freq-value,
   .volume-value {
     width: 5em;
     background-color: var(--input-bg);

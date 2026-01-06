@@ -896,27 +896,28 @@
         {/if}
         <div class="freq-header">
           <label for="freq-input-{freqObj.id}" class="visually-hidden">Frequency of tone {index + 1} in Hz</label>
-          {#key freqObj.freq}
-            <div class="freq-title-wrapper">
-              <input
-                id="freq-input-{freqObj.id}"
-                type="number"
-                class="freq-title"
-                value={freqObj.freq}
-                min={constants.MIN_FREQ}
-                max={constants.MAX_FREQ}
-                disabled={playState === constants.PLAYER_STATES.PLAY_ACRN ? isPlaying : (freqObj.id === selectedFreqId ? false : isPlaying)}
-                on:input={(e) => handleTextFreqChange(freqObj.id, e)}
-                on:keydown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    e.target.blur();
-                  }
-                }}
-              />
-              <span class="freq-unit" aria-hidden="true">Hz</span>
-            </div>
-          {/key}
+          <div class="freq-title-wrapper">
+            <input
+              id="freq-input-{freqObj.id}"
+              type="number"
+              class="freq-title"
+              value={freqObj.freq}
+              min={constants.MIN_FREQ}
+              max={constants.MAX_FREQ}
+              disabled={playState === constants.PLAYER_STATES.PLAY_ACRN ? isPlaying : (freqObj.id === selectedFreqId ? false : isPlaying)}
+              on:click={(e) => {
+                e.stopPropagation();
+              }}
+              on:input={(e) => handleTextFreqChange(freqObj.id, e)}
+              on:keydown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.target.blur();
+                }
+              }}
+            />
+            <span class="freq-unit" aria-hidden="true">Hz</span>
+          </div>
           {#if frequencies.length > 1 && !isPlaying}
             <button
               class="btn btn-danger btn-sm"

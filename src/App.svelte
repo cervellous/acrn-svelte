@@ -60,7 +60,8 @@
   // Audio objects
   let audioContext;
   let audioDestination;  // MediaStreamDestination for iOS compatibility
-  let osc;
+  let toneOscNode;
+  let toneGainNode;  // GainNode for continuous tone mode
   let phaseTimeout;
   let progressInterval;
   let acrnSchedulerInterval;  // For scheduling ACRN tones
@@ -145,21 +146,45 @@
   function cleanupAudioDestination() {
 
     // Stop all active oscillators immediately
+    if (toneOscNode) {
+      try {
+        toneOscNode.stop();
+      } catch (e) {
+        // Oscillator may have already stopped
+      }
+      try {
+        toneOscNode.disconnect();
+      } catch (e) {
+        // Already disconnected
+      }
+      toneOscNode = null;
+    }
+    if (toneGainNode) {
+      try {
+        toneGainNode.disconnect();
+      } catch (e) {
+        // Already disconnected
+      }
+      toneGainNode = null;
+    }
     acrnOscillators.forEach(oscillator => {
       try {
         oscillator.stop();
-        oscillator.disconnect();
       } catch (e) {
         // Oscillator may have already stopped
+      }
+      try {
+        oscillator.disconnect();
+      } catch (e) {
+        // Already disconnected
       }
     });
     acrnOscillators = [];
     acrnGainNodes.forEach(gainNode => {
       try {
-        gainNode.stop();
         gainNode.disconnect();
       } catch (e) {
-        // Already stopped
+        // Already disconnected
       }
     });
     acrnGainNodes = [];
@@ -324,21 +349,24 @@
           break;
         case constants.PLAYER_STATES.PLAY_TONE:
           // Create and start a continuous tone oscillator
-          if (osc) {
-            osc.stop();
-            osc.disconnect();
+          if (toneOscNode) {
+            toneOscNode.stop();
+            toneOscNode.disconnect();
+          }
+          if (toneGainNode) {
+            toneGainNode.disconnect();
           }
 
-          const gainNode = audioContext.createGain();
+          toneGainNode = audioContext.createGain();
           const linearGain = Math.pow(10, volume / 20);
-          gainNode.gain.value = linearGain;
-          gainNode.connect(audioDestination);
+          toneGainNode.gain.value = linearGain;
+          toneGainNode.connect(audioDestination);
 
-          osc = audioContext.createOscillator();
-          osc.type = 'sine';
-          osc.frequency.value = frequencies[0].freq;
-          osc.connect(gainNode);
-          osc.start();
+          toneOscNode = audioContext.createOscillator();
+          toneOscNode.type = 'sine';
+          toneOscNode.frequency.value = frequencies[0].freq;
+          toneOscNode.connect(toneGainNode);
+          toneOscNode.start();
           break;
       }
     } else {
@@ -349,12 +377,6 @@
           acrnTimeouts = [];
           break;
         case constants.PLAYER_STATES.PLAY_TONE:
-          // Stop the continuous tone oscillator
-          if (osc) {
-            osc.stop();
-            osc.disconnect();
-            osc = null;
-          }
           break;
       }
 
@@ -370,13 +392,6 @@
       // Clear all scheduled ACRN timeouts
       acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
       acrnTimeouts = [];
-    } else if (playState === constants.PLAYER_STATES.PLAY_TONE) {
-      // Stop the continuous tone oscillator
-      if (osc) {
-        osc.stop();
-        osc.disconnect();
-        osc = null;
-      }
     }
 
     // Clean up audio destination
@@ -398,16 +413,20 @@
       playAcrn();
     } else if (playState === constants.PLAYER_STATES.PLAY_TONE) {
       // Create and start a continuous tone oscillator
-      const gainNode = audioContext.createGain();
-      const linearGain = Math.pow(10, volume / 20);
-      gainNode.gain.value = linearGain;
-      gainNode.connect(audioDestination);
+      if (toneGainNode) {
+        toneGainNode.disconnect();
+      }
 
-      osc = audioContext.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = frequencies[0].freq;
-      osc.connect(gainNode);
-      osc.start();
+      toneGainNode = audioContext.createGain();
+      const linearGain = Math.pow(10, volume / 20);
+      toneGainNode.gain.value = linearGain;
+      toneGainNode.connect(audioDestination);
+
+      toneOscNode = audioContext.createOscillator();
+      toneOscNode.type = 'sine';
+      toneOscNode.frequency.value = frequencies[0].freq;
+      toneOscNode.connect(toneGainNode);
+      toneOscNode.start();
     }
   }
 
@@ -467,9 +486,9 @@
     // Update oscillator if in tone mode, playing, and this is the first frequency
     if (playState === constants.PLAYER_STATES.PLAY_TONE &&
         isPlaying &&
-        osc &&
+        toneOscNode &&
         id === frequencies[0].id) {
-      osc.frequency.value = value;
+      toneOscNode.frequency.value = value;
     }
 
     saveFrequenciesToLocalStorage(frequencies);
@@ -525,21 +544,25 @@
 
     // If currently playing in tone mode, need to restart to apply new volume
     // (Web Audio API doesn't allow changing gain on already-created nodes in our setup)
-    if (isPlaying && playState === constants.PLAYER_STATES.PLAY_TONE && osc) {
+    if (isPlaying && playState === constants.PLAYER_STATES.PLAY_TONE && toneOscNode) {
       // Recreate oscillator with new volume
-      osc.stop();
-      osc.disconnect();
+      toneOscNode.stop();
+      toneOscNode.disconnect();
 
-      const gainNode = audioContext.createGain();
+      if (toneGainNode) {
+        toneGainNode.disconnect();
+      }
+
+      toneGainNode = audioContext.createGain();
       const linearGain = Math.pow(10, vol / 20);
-      gainNode.gain.value = linearGain;
-      gainNode.connect(audioDestination);
+      toneGainNode.gain.value = linearGain;
+      toneGainNode.connect(audioDestination);
 
-      osc = audioContext.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = frequencies[0].freq;
-      osc.connect(gainNode);
-      osc.start();
+      toneOscNode = audioContext.createOscillator();
+      toneOscNode.type = 'sine';
+      toneOscNode.frequency.value = frequencies[0].freq;
+      toneOscNode.connect(toneGainNode);
+      toneOscNode.start();
     }
   }
 

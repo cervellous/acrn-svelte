@@ -534,8 +534,7 @@
   }
 
   function handleVolumeChange(e) {
-    let vol = +e.target.value - 0.05;
-    handleVolumeChangeVal(vol);
+    handleVolumeChangeVal(e.target.value);
   }
 
   function handleVolumeChangeVal(vol) {

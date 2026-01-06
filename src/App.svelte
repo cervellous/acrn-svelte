@@ -738,38 +738,6 @@
 
     <br/>
 
-    <!-- Formula Toggle (for Sequence mode) -->
-    {#if playState === constants.PLAYER_STATES.PLAY_ACRN}
-      <div class="formula-toggle">
-        <label>
-          <input
-            type="checkbox"
-            bind:checked={useOldFormula}
-            on:change={handleFormulaToggle}
-            disabled={isPlaying}
-          />
-          Use legacy frequency formula
-        </label>
-      </div>
-    {/if}
-
-    <!-- Envelope Toggle (for Sequence mode) -->
-    {#if playState === constants.PLAYER_STATES.PLAY_ACRN}
-      <div class="formula-toggle">
-        <label>
-          <input
-            type="checkbox"
-            bind:checked={useOldEnvelope}
-            on:change={handleEnvelopeToggle}
-            disabled={isPlaying}
-          />
-          Use legacy envelope (100ms attack, 80ms release)
-        </label>
-      </div>
-    {/if}
-
-    <br/>
-
     <!-- Warning for Tone mode with multiple frequencies -->
     {#if playState === constants.PLAYER_STATES.PLAY_TONE && frequencies.length > 1}
       <div class="alert alert-warning">
@@ -909,6 +877,36 @@
     <div>
       <input class="volume-value" type="number" value={volume} on:input={handleTextVolumeChange} />
     </div>
+
+    <!-- Formula Toggle (for Sequence mode) -->
+    {#if playState === constants.PLAYER_STATES.PLAY_ACRN}
+      <div class="formula-toggle">
+        <label>
+          <input
+            type="checkbox"
+            bind:checked={useOldFormula}
+            on:change={handleFormulaToggle}
+            disabled={isPlaying}
+          />
+          Use legacy frequency formula
+        </label>
+      </div>
+    {/if}
+
+    <!-- Envelope Toggle (for Sequence mode) -->
+    {#if playState === constants.PLAYER_STATES.PLAY_ACRN}
+      <div class="formula-toggle">
+        <label>
+          <input
+            type="checkbox"
+            bind:checked={useOldEnvelope}
+            on:change={handleEnvelopeToggle}
+            disabled={isPlaying}
+          />
+          Use legacy envelope (100ms attack, 80ms release)
+        </label>
+      </div>
+    {/if}
 
     <br/>
     <div class="frequency-card">

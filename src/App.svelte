@@ -62,6 +62,8 @@
   let audioDestination;  // MediaStreamDestination for iOS compatibility
   let toneOscNode;
   let toneGainNode;  // GainNode for continuous tone mode
+  let silentOscNode;  // Very quiet oscillator to keep iOS audio stream alive
+  let silentGainNode;
   let phaseTimeout;
   let progressInterval;
   let acrnSchedulerInterval;  // For scheduling ACRN tones
@@ -142,9 +144,8 @@
     }
   }
 
-  // Clean up audio destination
+  // Clean up audio destination (when stopping playback)
   function cleanupAudioDestination() {
-
     // Stop all active oscillators immediately
     if (toneOscNode) {
       try {
@@ -167,6 +168,31 @@
       }
       toneGainNode = null;
     }
+
+    // Stop silent oscillator (for ACRN mode)
+    if (silentOscNode) {
+      try {
+        silentOscNode.stop();
+      } catch (e) {
+        // Already stopped
+      }
+      try {
+        silentOscNode.disconnect();
+      } catch (e) {
+        // Already disconnected
+      }
+      silentOscNode = null;
+    }
+    if (silentGainNode) {
+      try {
+        silentGainNode.disconnect();
+      } catch (e) {
+        // Already disconnected
+      }
+      silentGainNode = null;
+    }
+
+    // Clean up ACRN nodes
     acrnOscillators.forEach(oscillator => {
       try {
         oscillator.stop();
@@ -189,6 +215,7 @@
     });
     acrnGainNodes = [];
 
+    // Clean up audio element and destination
     const audioElement = document.getElementById('ios-audio');
     if (audioElement) {
       audioElement.pause();
@@ -286,6 +313,34 @@
     oscillator.stop(startTime + actualDuration);
   }
 
+  // Create silent oscillator to keep iOS audio stream alive
+  function createSilentOscillator() {
+    if (!audioContext || !audioDestination) return;
+
+    // Stop previous silent oscillator if exists
+    if (silentOscNode) {
+      try {
+        silentOscNode.stop();
+        silentOscNode.disconnect();
+      } catch (e) {}
+    }
+    if (silentGainNode) {
+      try {
+        silentGainNode.disconnect();
+      } catch (e) {}
+    }
+
+    // Create a very quiet continuous oscillator to keep iOS audio stream alive
+    silentGainNode = audioContext.createGain();
+    silentGainNode.gain.value = 0.00001;  // Extremely quiet, essentially inaudible
+    silentGainNode.connect(audioDestination);
+
+    silentOscNode = audioContext.createOscillator();
+    silentOscNode.frequency.value = 20;  // Very low frequency, below hearing range
+    silentOscNode.connect(silentGainNode);
+    silentOscNode.start();
+  }
+
   // Main ACRN playback function using Web Audio API
   function playAcrn() {
     if (!audioContext) return;
@@ -304,6 +359,10 @@
     const scheduleACRN = () => {
       cleanupAudioDestination();
       setupAudioDestination();
+
+      // Recreate silent oscillator after audioDestination is recreated
+      createSilentOscillator();
+
       const now = audioContext.currentTime;
 
       frequencies.forEach(freqObj => {

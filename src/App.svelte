@@ -224,6 +224,13 @@
       audioElement.pause();
       audioElement.srcObject = null;
     }
+    if (audioDestination) {
+      try {
+        audioDestination.disconnect();
+      } catch (e) {
+        // Already disconnected
+      }
+    }
     audioDestination = null;
   }
 

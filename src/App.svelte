@@ -355,6 +355,11 @@
   function playAcrn() {
     if (!audioContext) return;
 
+    cleanupAudioDestination();
+    setupAudioDestination();
+    // Recreate silent oscillator after audioDestination is recreated
+    createSilentOscillator();
+
     // Clear any existing timeouts and oscillators
     acrnTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
     acrnTimeouts = [];
@@ -367,11 +372,6 @@
 
     // Schedule ACRN pattern for each frequency
     const scheduleACRN = () => {
-      cleanupAudioDestination();
-      setupAudioDestination();
-
-      // Recreate silent oscillator after audioDestination is recreated
-      createSilentOscillator();
 
       const now = audioContext.currentTime;
 

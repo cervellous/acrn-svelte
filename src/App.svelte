@@ -1038,7 +1038,6 @@
           <li>Adjust the frequency slider until it matches your tinnitus tone. You can also type in the frequency if you know it already.</li>
           <li>Adjust the volume until it is a little bit louder than your tinnitus tone.</li>
           <li>Switch from "Tone" to "Sequence" mode</li>
-          <li>For multiple simultaneous tones, use the "Add Frequency" button in Sequence mode</li>
         </ul>
       </div>
 

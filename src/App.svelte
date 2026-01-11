@@ -53,7 +53,7 @@
   let interval = getLocalStorageInt(constants.INTERVAL_KEY, constants.INTERVAL_MINS);
   let playState = getLocalStorageInt(constants.PLAYER_STATE_KEY, constants.PLAYER_STATES.PLAY_TONE);
   let useOldFormula = getLocalStorageBool(constants.USE_OLD_FORMULA_KEY, false);
-  let useOldEnvelope = getLocalStorageBool(constants.USE_OLD_ENVELOPE_KEY, false);
+  let useHardEnvelope = getLocalStorageBool(constants.USE_OLD_ENVELOPE_KEY, false);
   let selectedFreqId = getLocalStorageInt(constants.SELECTED_FREQ_ID_KEY, frequencies.length > 0 ? frequencies[0].id : 0);
   let isPlaying = false;
   let nextFreqId = frequencies.length > 0 ? Math.max(...frequencies.map(f => f.id)) + 1 : 1;
@@ -283,7 +283,7 @@
 
     // Envelope parameters
     let attackTime, sustainLevel, releaseTime, actualDuration;
-    if (useOldEnvelope) {
+    if (!useHardEnvelope) {
       // Old envelope: 100ms attack, sustain at 70%, 80ms release
       attackTime = 0.1;
       sustainLevel = 0.7; // Tone.js sustain level
@@ -303,7 +303,7 @@
     // Attack: ramp from 0 to full gain
     gainNode.gain.linearRampToValueAtTime(linearGain, startTime + attackTime);
     // Decay/Sustain: drop to sustain level (immediate for new, gradual for old)
-    if (useOldEnvelope && sustainLevel < 1.0) {
+    if (!useHardEnvelope && sustainLevel < 1.0) {
       gainNode.gain.linearRampToValueAtTime(linearGain * sustainLevel, startTime + attackTime + 0.01);
       gainNode.gain.setValueAtTime(linearGain * sustainLevel, startTime + actualDuration - releaseTime);
     } else {
@@ -674,7 +674,7 @@
   }
 
   function handleEnvelopeToggle() {
-    localStorage.setItem(constants.USE_OLD_ENVELOPE_KEY, useOldEnvelope);
+    localStorage.setItem(constants.USE_OLD_ENVELOPE_KEY, useHardEnvelope);
   }
 
   function handleFreqCardClick(id) {
@@ -1010,11 +1010,11 @@
         <label>
           <input
             type="checkbox"
-            bind:checked={useOldEnvelope}
+            bind:checked={useHardEnvelope}
             on:change={handleEnvelopeToggle}
             disabled={isPlaying}
           />
-          Use legacy envelope (100ms attack, 80ms release)
+          Use hard envelope
         </label>
       </div>
     {/if}

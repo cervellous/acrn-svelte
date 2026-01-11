@@ -1028,7 +1028,7 @@
         </a> tinnitus treatment protocol using
         <a href="https://www.tinnitustalk.com/attachments/tass-et-al_rnn-2012_counteracting-tinnitus-by-acoustic-cr-neuromodulation-pdf.183/">
           this paper
-        </a> as a guide. Changes allow for the ACRN tone to cycle on and off, play ACRN tones for multiple frequencies simultaneously, and fixes memory leaks from the original implementation.
+        </a> as a guide. Changes allow for the ACRN tone to cycle on and off on a schedule to automatically provide a break, plays ACRN tones for multiple frequencies simultaneously, and fixes memory leaks from the original implementation. Formula for determining ACRN frequencies is also updated (legacy mode replicates original behavior)
       </p>
 
       <div class="instructions">
